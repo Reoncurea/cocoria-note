@@ -1,0 +1,289 @@
+{
+  "version": "1.0",
+  "description": "事前プランニング・ルールベース提案エンジン定義",
+  "notes": "各ルールはcondition（条件）とsuggestion（提案内容）を持つ。条件が真なら提案カードが追加される。",
+  "rule_groups": [
+    {
+      "id": "support_timing",
+      "title": "サポート開始時期の提案",
+      "rules": [
+        {
+          "id": "timing_no_supporter",
+          "condition": {
+            "all": [
+              { "field": "discharge_supporter", "op": "empty_or_contains", "value": ["なし", "いない", "頼れない"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "サポート体制",
+            "title": "退院直後からの手厚いサポートを推奨",
+            "body": "退院後にご家族のサポートが得られない状況のため、退院日当日〜翌日からの訪問開始をおすすめします。最低でも週3〜4回、産後2ヶ月までの継続利用が理想です。"
+          }
+        },
+        {
+          "id": "timing_satogaeri",
+          "condition": {
+            "all": [
+              { "field": "discharge_location", "op": "contains", "value": ["里帰り", "実家"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "サポート体制",
+            "title": "里帰り終了後からのサポート開始を推奨",
+            "body": "里帰り後にご自宅へ戻られるタイミングが、環境の変化・ご家族のサポート減少で負担が増える時期です。里帰り終了の1週間前から顔合わせ、終了直後から本格サポート開始を推奨します。"
+          }
+        },
+        {
+          "id": "timing_papa_busy",
+          "condition": {
+            "any": [
+              { "field": "papa_support_status", "op": "contains", "value": ["出張", "夜勤", "単身赴任", "多忙", "帰りが遅い"] },
+              { "field": "papa_work", "op": "contains", "value": ["夜勤", "シフト", "出張"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "サポート体制",
+            "title": "日中のサポート比重を厚めに",
+            "body": "パパの在宅時間が限定的なため、平日日中のサポートを厚めに設計することをおすすめします。パパ不在時のママのワンオペ負担を減らすため、夕方〜就寝前のサポートも検討余地があります。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "meal_planning",
+      "title": "食事サポートの提案",
+      "rules": [
+        {
+          "id": "meal_allergy_alert",
+          "condition": {
+            "any": [
+              { "field": "mama_allergy", "op": "not_empty" },
+              { "field": "papa_allergy", "op": "not_empty" },
+              { "field": "child_allergy", "op": "not_empty" }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "食事",
+            "title": "⚠️ アレルギー情報の共有チェックリスト作成を推奨",
+            "body": "ご家族にアレルギー/食材制限があります。調理前チェックリスト（使用食材の写真記録、パッケージ確認ルール、別調理の手順）の作成をお願いします。"
+          }
+        },
+        {
+          "id": "meal_kids_present",
+          "condition": {
+            "any": [
+              { "field": "child_name", "op": "not_empty", "repeatable": true }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "食事",
+            "title": "取り分け調理メニューのご提案",
+            "body": "上のお子さまがいらっしゃるので、ママ向けの栄養重視メニューから取り分け可能な献立（薄味のスープ、煮物、おにぎり等）を中心に組み立てると効率的です。"
+          }
+        },
+        {
+          "id": "meal_mama_satogaeri_return",
+          "condition": {
+            "all": [
+              { "field": "discharge_location", "op": "contains", "value": ["里帰り", "実家"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "食事",
+            "title": "作り置き重視でスタート",
+            "body": "里帰りから戻られた直後は疲労が蓄積しやすい時期です。訪問時に3〜4日分の作り置きを調理し、ママが温めるだけで食事できる形に整えることを推奨します。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "baby_care",
+      "title": "赤ちゃんのお世話の提案",
+      "rules": [
+        {
+          "id": "baby_first_child",
+          "condition": {
+            "all": [
+              { "field": "past_birth", "op": "empty_or_contains", "value": ["初産", "はじめて", "第一子"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "赤ちゃんのお世話",
+            "title": "初産ママ向け・お世話の実演サポート",
+            "body": "沐浴・授乳・おむつ替えなど、初回は産後パートナーが実演 → ママが実施 → フォローの形で進めます。ママが自信を持てるまで、繰り返し実施可能です。"
+          }
+        },
+        {
+          "id": "baby_mixed_feeding",
+          "condition": {
+            "all": [
+              { "field": "milk_type", "op": "not_empty" }
+            ]
+          },
+          "suggestion": {
+            "priority": "low",
+            "category": "赤ちゃんのお世話",
+            "title": "ミルク・哺乳瓶の管理ルール",
+            "body": "ミルクをご使用のため、哺乳瓶の消毒方法・作り置きの可否・温度管理についてママと事前にすり合わせます。訪問時はミルク残量のチェックもチェックリストに含めます。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "upper_child",
+      "title": "上のお子さまへの配慮",
+      "rules": [
+        {
+          "id": "upper_child_school",
+          "condition": {
+            "any": [
+              { "field": "child_school", "op": "not_empty", "repeatable": true }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "上の子のお世話",
+            "title": "送迎・習い事スケジュールとの連携",
+            "body": "保育園・学校・習い事のスケジュールをカレンダー共有することで、送迎や帰宅後の対応がスムーズになります。週次で翌週のスケジュールをママと確認する時間を設けることを推奨します。"
+          }
+        },
+        {
+          "id": "upper_child_regression",
+          "condition": {
+            "any": [
+              { "field": "child_name", "op": "not_empty", "repeatable": true }
+            ]
+          },
+          "suggestion": {
+            "priority": "low",
+            "category": "上の子のお世話",
+            "title": "赤ちゃん返りへの対応準備",
+            "body": "新生児が来ることでの赤ちゃん返り・情緒不安定が起きやすい時期です。上のお子さまと過ごす時間を意識的に確保し、ママから離れた時間に絵本や工作で関わる時間を持つことをおすすめします。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mental_care",
+      "title": "メンタルケアの提案",
+      "rules": [
+        {
+          "id": "mental_anxiety",
+          "condition": {
+            "any": [
+              { "field": "concerns", "op": "contains", "value": ["不安", "心配", "こわい", "孤独", "眠れ", "鬱", "メンタル"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "メンタルケア",
+            "title": "傾聴時間の確保を推奨",
+            "body": "産後の不安要素が多いため、毎回の訪問で10〜15分の傾聴時間を確保することをおすすめします。産後うつのサインが見えた場合は、担当保健師・医療機関への連絡経路を事前に整えておきます。"
+          }
+        },
+        {
+          "id": "mental_family_understanding_low",
+          "condition": {
+            "any": [
+              { "field": "family_understanding", "op": "contains", "value": ["理解がない", "反対", "渋々", "否定的"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "メンタルケア",
+            "title": "ご家族への説明資料のご提供",
+            "body": "周囲のご理解が得づらい状況のようです。産後パートナーの役割・サポート内容を説明する資料をお渡しし、必要に応じて初回訪問時にご家族同席での面談をご提案します。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "safety_privacy",
+      "title": "安全・プライバシー",
+      "rules": [
+        {
+          "id": "privacy_no_go",
+          "condition": {
+            "all": [
+              { "field": "no_go_zones", "op": "not_empty" }
+            ]
+          },
+          "suggestion": {
+            "priority": "high",
+            "category": "プライバシー",
+            "title": "立入禁止エリアの共有徹底",
+            "body": "立入禁止のお部屋・触れないもののリストを、担当パートナー全員に初回訪問前に共有します。訪問チェックリストにも明記します。"
+          }
+        },
+        {
+          "id": "evac_set",
+          "condition": {
+            "all": [
+              { "field": "evac_place", "op": "not_empty" }
+            ]
+          },
+          "suggestion": {
+            "priority": "low",
+            "category": "防災",
+            "title": "避難経路の事前確認",
+            "body": "初回訪問時に避難経路・避難場所までのルートを担当パートナーと一緒に確認します。災害時の連絡手順（緊急連絡先への連絡順序）も記載しておきます。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "frequency_design",
+      "title": "訪問頻度の設計",
+      "rules": [
+        {
+          "id": "freq_first_month",
+          "condition": {
+            "any": [
+              { "field": "support_start", "op": "contains", "value": ["退院後すぐ", "退院直後", "すぐ"] }
+            ]
+          },
+          "suggestion": {
+            "priority": "medium",
+            "category": "訪問頻度",
+            "title": "産後1ヶ月は週3〜5回の手厚いサポート",
+            "body": "産後1ヶ月は産褥期で最も安静が必要な時期です。週3〜5回の訪問で家事負担をゼロに近づけ、ママが休息と授乳に専念できる環境を整えます。"
+          }
+        },
+        {
+          "id": "freq_second_month",
+          "condition": {
+            "any": [
+              { "field": "support_frequency", "op": "not_empty" }
+            ]
+          },
+          "suggestion": {
+            "priority": "low",
+            "category": "訪問頻度",
+            "title": "産後2ヶ月以降は頻度を段階的に調整",
+            "body": "産後2ヶ月以降、ママの体調回復とペースに応じて週2〜3回に減らし、生活が安定した段階で卒業を見据えます。月次でママと振り返り面談を行い、頻度を柔軟に調整します。"
+          }
+        }
+      ]
+    }
+  ],
+  "output_template": {
+    "description": "提案出力のテンプレート（画面表示・PDF出力で使用）",
+    "sections": [
+      { "category": "サポート体制", "icon": "🗓️" },
+      { "category": "食事", "icon": "🍚" },
+      { "category": "赤ちゃんのお世話", "icon": "👶" },
+      { "category": "上の子のお世話", "icon": "🧒" },
+      { "category": "メンタルケア", "icon": "💝" },
+      { "category": "プライバシー", "icon": "🔒" },
+      { "category": "防災", "icon": "🚨" },
+      { "category": "訪問頻度", "icon": "📅" }
+    ]
+  }
+}

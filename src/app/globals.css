@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* パステルピンク系カラーパレット */
+  --color-primary:      #f9a8c9;
+  --color-primary-dark: #f472b6;
+  --color-primary-light:#fce7f3;
+  --color-accent:       #fbcfe8;
+  --color-surface:      #fff5f9;
+  --color-background:   #fdf2f8;
+  --color-text:         #3d1a2e;
+  --color-text-muted:   #9d6080;
+  --color-border:       #fcd7e8;
+  --color-success:      #86efac;
+  --color-warning:      #fde68a;
+  --color-danger:       #fca5a5;
+  --color-white:        #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* iPhoneでのダブルタップズーム防止 */
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* iOSのセーフエリア対応 */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* スクロールバーを細く */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-primary);
+  border-radius: 2px;
+}
+
+/* ========================================
+   共通コンポーネントスタイル
+======================================== */
+
+/* カード */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 1px 8px rgba(249, 168, 201, 0.12);
+}
+
+/* ボタン — プライマリ */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+
+/* ボタン — セカンダリ */
+.btn-secondary {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border: 1.5px solid var(--color-primary);
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-secondary:active { background: var(--color-accent); }
+
+/* インプット */
+.input {
+  width: 100%;
+  background: var(--color-white);
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 15px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(249, 168, 201, 0.2);
+}
+
+/* バッジ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-active  { background: #dcfce7; color: #166534; }
+.badge-contracted { background: var(--color-accent); color: var(--color-primary-dark); }
+.badge-ended   { background: #f3f4f6; color: #6b7280; }
+
+/* トグルスイッチ */
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  width: 44px; height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+.toggle input:checked + .toggle-track { background: var(--color-primary-dark); }
+.toggle-thumb {
+  position: absolute;
+  left: 2px;
+  width: 20px; height: 20px;
+  background: white;
+  border-radius: 10px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle input:checked ~ .toggle-thumb { transform: translateX(20px); }
+
+/* セクションラベル */
+.section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+/* ページタイトル */
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* 区切り線 */
+.divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 12px 0;
+}
+
+/* タグチップ */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--color-accent);
+}
+.tag-chip-selected {
+  background: var(--color-primary-dark);
+  color: white;
+  border-color: var(--color-primary-dark);
+}
+
+/* ボトムナビ用スペーサー */
+.bottom-nav-spacer { height: 80px; }
+
+/* フォームラベル */
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.form-label .required {
+  color: var(--color-primary-dark);
+  margin-left: 2px;
+}
+
+@media print {
+  .card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

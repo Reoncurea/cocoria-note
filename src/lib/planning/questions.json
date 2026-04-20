@@ -1,0 +1,225 @@
+{
+  "version": "1.1",
+  "description": "事前プランニング・ヒアリング質問フロー定義",
+  "sections": [
+    {
+      "id": "basic",
+      "title": "基本情報",
+      "intro": "まずは基本情報をお伺いしますね 🌸",
+      "questions": [
+        { "id": "name", "label": "お名前", "type": "text", "required": true, "placeholder": "例：山田 花子" },
+        { "id": "name_kana", "label": "ふりがな", "type": "text", "required": false, "placeholder": "例：やまだ はなこ" },
+        { "id": "address", "label": "ご住所", "type": "text", "required": true },
+        { "id": "phone", "label": "電話番号", "type": "tel", "required": true },
+        { "id": "email", "label": "メールアドレス", "type": "email", "required": true },
+        { "id": "due_date", "label": "ご出産予定日", "type": "date", "required": true },
+        { "id": "birth_place", "label": "出産場所", "type": "text", "required": false, "placeholder": "例：〇〇病院" },
+        { "id": "staff", "label": "担当者", "type": "text", "required": false },
+        { "id": "record_date", "label": "記載日", "type": "date", "required": true, "default": "today" },
+        { "id": "pregnancy_weeks", "label": "記載日の妊娠週数", "type": "number", "required": false, "unit": "週" }
+      ]
+    },
+    {
+      "id": "emergency",
+      "title": "緊急連絡先",
+      "intro": "万が一に備えて、緊急連絡先を2名まで登録いただけます",
+      "questions": [
+        { "id": "emergency_1_name", "label": "緊急連絡先① お名前", "type": "text", "required": true },
+        { "id": "emergency_1_relation", "label": "緊急連絡先① 続柄", "type": "text", "required": true, "placeholder": "例：夫、母" },
+        { "id": "emergency_1_phone", "label": "緊急連絡先① 電話番号", "type": "tel", "required": true },
+        { "id": "emergency_2_name", "label": "緊急連絡先② お名前", "type": "text", "required": false },
+        { "id": "emergency_2_relation", "label": "緊急連絡先② 続柄", "type": "text", "required": false },
+        { "id": "emergency_2_phone", "label": "緊急連絡先② 電話番号", "type": "tel", "required": false }
+      ]
+    },
+    {
+      "id": "evacuation",
+      "title": "避難場所",
+      "intro": "災害時に備えて、避難場所の情報を教えてください",
+      "questions": [
+        { "id": "evac_place", "label": "避難場所（名称）", "type": "text", "required": false },
+        { "id": "evac_address", "label": "避難場所の住所", "type": "text", "required": false },
+        { "id": "evac_transport", "label": "移動手段", "type": "select", "options": ["徒歩", "車", "自転車", "公共交通機関"], "required": false },
+        { "id": "evac_time", "label": "移動時間（分）", "type": "number", "unit": "分", "required": false }
+      ]
+    },
+    {
+      "id": "family_mama",
+      "title": "ご家族情報 - ママ",
+      "intro": "ママについて教えてください",
+      "questions": [
+        { "id": "mama_name", "label": "お名前", "type": "text", "required": true },
+        { "id": "mama_work", "label": "お仕事（職種、勤務体制、育休期間）", "type": "textarea", "required": false },
+        { "id": "mama_pregnancy_history", "label": "妊娠の経過", "type": "textarea", "required": false, "placeholder": "例：つわり軽め、〇週でマイナートラブル…" },
+        { "id": "mama_personality", "label": "性格", "type": "textarea", "required": false },
+        { "id": "mama_medical_history", "label": "既往歴", "type": "textarea", "required": false },
+        { "id": "mama_allergy", "label": "アレルギー・制限中の食材", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "family_papa",
+      "title": "ご家族情報 - パパ",
+      "intro": "パパについても教えてください（いらっしゃらない場合はスキップできます）",
+      "skippable": true,
+      "questions": [
+        { "id": "papa_name", "label": "お名前", "type": "text", "required": false },
+        { "id": "papa_work", "label": "お仕事（職種、勤務体制、育休期間）", "type": "textarea", "required": false },
+        { "id": "papa_support_status", "label": "現在のサポート状況", "type": "textarea", "required": false, "placeholder": "例：平日夜のみ家事対応可、土日は終日在宅…" },
+        { "id": "papa_personality", "label": "性格", "type": "textarea", "required": false },
+        { "id": "papa_medical_history", "label": "既往歴", "type": "textarea", "required": false },
+        { "id": "papa_allergy", "label": "アレルギー・制限中の食材", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "family_children",
+      "title": "ご家族情報 - 上のお子さま",
+      "intro": "上のお子さまについて教えてください（最大2名まで、いらっしゃらない場合はスキップ）",
+      "skippable": true,
+      "repeatable": { "min": 0, "max": 2, "itemLabel": "お子さま" },
+      "questions": [
+        { "id": "child_name", "label": "お名前", "type": "text", "required": false },
+        { "id": "child_gender", "label": "性別", "type": "select", "options": ["男", "女", "答えない"], "required": false },
+        { "id": "child_school", "label": "保育園・学校（学年）", "type": "text", "required": false },
+        { "id": "child_lessons", "label": "習い事（曜日・時間）", "type": "textarea", "required": false },
+        { "id": "child_personality", "label": "性格", "type": "textarea", "required": false },
+        { "id": "child_medical_history", "label": "既往歴", "type": "textarea", "required": false },
+        { "id": "child_allergy", "label": "アレルギー・制限中の食材", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "baby_info",
+      "title": "赤ちゃん情報",
+      "intro": "赤ちゃんについて教えてください。まだ生まれていない場合はスキップできます 🍼",
+      "skippable": true,
+      "questions": [
+        { "id": "baby_count", "label": "赤ちゃんの人数", "type": "select", "options": ["1人", "2人（双子）", "3人以上"], "required": false },
+        { "id": "baby_name", "label": "赤ちゃんのお名前", "type": "text", "required": false, "placeholder": "例：はなちゃん" },
+        { "id": "baby_gender", "label": "性別", "type": "select", "options": ["男の子", "女の子", "答えない"], "required": false },
+        { "id": "baby_birth_date", "label": "生年月日", "type": "date", "required": false },
+        { "id": "baby_birth_weight", "label": "出生体重", "type": "number", "required": false, "unit": "g", "placeholder": "例：3000" },
+        { "id": "baby_notes", "label": "赤ちゃんについて特記事項（早産、NICU入院歴など）", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "postpartum_concerns",
+      "title": "産後のご質問",
+      "intro": "産後の生活について、いくつかお伺いしますね",
+      "questions": [
+        { "id": "concerns", "label": "ママ、パパが産後の生活について不安や心配に感じていること", "type": "textarea", "required": false, "hint": "思いつくままで大丈夫です" },
+        { "id": "postpartum_lifestyle", "label": "産後はどのように過ごしたいか", "type": "textarea", "required": false },
+        { "id": "past_birth", "label": "過去の出産など、事前に知っておいて欲しいこと", "type": "textarea", "required": false },
+        { "id": "discharge_location", "label": "退院後に過ごす場所（里帰り期間など）", "type": "textarea", "required": false, "placeholder": "例：退院後1ヶ月は実家、その後自宅へ" },
+        { "id": "discharge_supporter", "label": "退院後にサポートしてくださる方（どなたなのか、ご年齢、お仕事の有無、在宅時間など）", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "partner_support",
+      "title": "産後パートナーに関するご質問",
+      "intro": "ご希望のサポート内容についてお伺いします",
+      "questions": [
+        {
+          "id": "desired_support",
+          "label": "現時点で依頼したいと感じるサポート",
+          "type": "multi_select",
+          "options": ["料理", "掃除", "洗濯", "赤ちゃんのお世話", "上の子のお世話"],
+          "required": false,
+          "allow_other": true
+        },
+        { "id": "support_start", "label": "サポート開始時期", "type": "text", "required": false, "placeholder": "例：退院後すぐ / 産後2週間〜" },
+        { "id": "support_frequency", "label": "曜日・頻度", "type": "text", "required": false, "placeholder": "例：月・水・金の週3回" },
+        { "id": "support_time", "label": "訪問時間", "type": "text", "required": false, "placeholder": "例：10:00〜13:00" },
+        { "id": "support_end", "label": "サポート終了の予想時期", "type": "text", "required": false, "placeholder": "例：産後3ヶ月まで" },
+        { "id": "partner_questions", "label": "産後パートナーへの疑問やご要望、気になること", "type": "textarea", "required": false },
+        { "id": "family_understanding", "label": "産後パートナーに対する周囲の方の考え・ご理解（夫、子ども、ご両親など）", "type": "textarea", "required": false },
+        { "id": "no_go_zones", "label": "入って欲しくない部屋、触って欲しくないもの", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "housework_meal",
+      "title": "家事サポート - 食事",
+      "intro": "食事について詳しく教えてください",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "料理" },
+      "questions": [
+        { "id": "seasonings", "label": "ご使用の調味料", "type": "textarea", "required": false, "placeholder": "例：醤油（キッコーマン特選）、みそ（マルコメ）…" },
+        { "id": "meal_for", "label": "産後パートナーが作る食事を召し上がる人", "type": "multi_select", "options": ["ママ", "パパ", "お子さま①", "お子さま②"], "required": false },
+        { "id": "rice_amount", "label": "お米の炊く量", "type": "text", "required": false, "placeholder": "例：3合" },
+        { "id": "rice_hardness", "label": "お米のかたさ", "type": "select", "options": ["かため", "ふつう", "やわらかめ"], "required": false },
+        { "id": "rice_timing", "label": "炊き上がりの時間", "type": "text", "required": false, "placeholder": "例：18時" },
+        { "id": "mama_meal_amount", "label": "ママの食べる量", "type": "text", "required": false },
+        { "id": "mama_meal_time", "label": "ママのお食事の時間帯", "type": "text", "required": false },
+        { "id": "mama_meal_taste", "label": "ママの味付け", "type": "select", "options": ["こい", "ふつう", "うすい"], "required": false },
+        { "id": "mama_likes", "label": "ママの好きな食べ物", "type": "textarea", "required": false },
+        { "id": "mama_dislikes", "label": "ママの嫌いな食べ物", "type": "textarea", "required": false },
+        { "id": "papa_meal_amount", "label": "パパの食べる量", "type": "text", "required": false },
+        { "id": "papa_meal_time", "label": "パパのお食事の時間帯", "type": "text", "required": false },
+        { "id": "papa_meal_taste", "label": "パパの味付け", "type": "select", "options": ["こい", "ふつう", "うすい"], "required": false },
+        { "id": "papa_likes", "label": "パパの好きな食べ物", "type": "textarea", "required": false },
+        { "id": "papa_dislikes", "label": "パパの嫌いな食べ物", "type": "textarea", "required": false },
+        { "id": "meal_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "housework_laundry",
+      "title": "家事サポート - 洗濯",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "洗濯" },
+      "questions": [
+        { "id": "laundry_place", "label": "干す場所", "type": "text", "required": false, "placeholder": "例：ベランダ、浴室乾燥" },
+        { "id": "laundry_fold", "label": "畳み方", "type": "textarea", "required": false, "placeholder": "例：タオルは三つ折り、肌着は…" },
+        { "id": "laundry_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "housework_cleaning",
+      "title": "家事サポート - 掃除",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "掃除" },
+      "questions": [
+        { "id": "cleaning_places", "label": "掃除場所", "type": "textarea", "required": false, "placeholder": "例：リビング、水回り、玄関" },
+        { "id": "cleaning_tools", "label": "掃除道具", "type": "textarea", "required": false, "placeholder": "例：ルンバ、掃除機（ダイソン）、クイックルワイパー" },
+        { "id": "cleaning_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "baby_bath",
+      "title": "赤ちゃんのお世話 - 沐浴",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "赤ちゃんのお世話" },
+      "questions": [
+        { "id": "bath_place", "label": "沐浴の場所", "type": "text", "required": false },
+        { "id": "baby_soap", "label": "お使いのベビーソープ", "type": "text", "required": false },
+        { "id": "bath_method", "label": "洗い方のご要望", "type": "textarea", "required": false },
+        { "id": "bath_moisturizer", "label": "入浴剤・保湿剤など", "type": "text", "required": false },
+        { "id": "bath_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "baby_milk",
+      "title": "赤ちゃんのお世話 - ミルク",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "赤ちゃんのお世話" },
+      "questions": [
+        { "id": "milk_type", "label": "ミルクの種類", "type": "text", "required": false },
+        { "id": "milk_amount", "label": "1回量", "type": "text", "required": false, "unit": "ml" },
+        { "id": "milk_prep", "label": "作り方", "type": "textarea", "required": false },
+        { "id": "milk_frequency", "label": "時間、頻度", "type": "text", "required": false },
+        { "id": "milk_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "baby_sleep",
+      "title": "赤ちゃんのお世話 - 寝かしつけ",
+      "show_if": { "section": "partner_support", "question": "desired_support", "includes": "赤ちゃんのお世話" },
+      "questions": [
+        { "id": "sleep_place", "label": "寝かしつけの場所", "type": "text", "required": false },
+        { "id": "sleep_light", "label": "電気", "type": "select", "options": ["消灯", "豆電球", "間接照明", "明るめ"], "required": false },
+        { "id": "sleep_notes", "label": "その他のご要望や注意して欲しいこと", "type": "textarea", "required": false }
+      ]
+    },
+    {
+      "id": "other",
+      "title": "その他",
+      "intro": "最後に、他にご希望や留意点があれば",
+      "questions": [
+        { "id": "other_requests", "label": "その他のサポートのご希望、留意点など", "type": "textarea", "required": false },
+        { "id": "memo", "label": "メモ（担当者用）", "type": "textarea", "required": false }
+      ]
+    }
+  ]
+}
