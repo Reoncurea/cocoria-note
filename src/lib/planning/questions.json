@@ -7,11 +7,11 @@
       "title": "基本情報",
       "intro": "まずは基本情報をお伺いしますね 🌸",
       "questions": [
-        { "id": "name", "label": "お名前", "type": "text", "required": true, "placeholder": "例：山田 花子" },
+        { "id": "name", "label": "お名前", "type": "text", "required": true, "source": "customer", "customer_field": "name_kanji" },
         { "id": "name_kana", "label": "ふりがな", "type": "text", "required": false, "placeholder": "例：やまだ はなこ" },
-        { "id": "address", "label": "ご住所", "type": "text", "required": true },
-        { "id": "phone", "label": "電話番号", "type": "tel", "required": true },
-        { "id": "email", "label": "メールアドレス", "type": "email", "required": true },
+        { "id": "address", "label": "ご住所", "type": "text", "required": true, "source": "customer", "customer_field": "address" },
+        { "id": "phone", "label": "電話番号", "type": "tel", "required": true, "source": "customer", "customer_field": "phone" },
+        { "id": "email", "label": "メールアドレス", "type": "email", "required": true, "source": "customer", "customer_field": "email" },
         { "id": "due_date", "label": "ご出産予定日", "type": "date", "required": true },
         { "id": "birth_place", "label": "出産場所", "type": "text", "required": false, "placeholder": "例：〇〇病院" },
         { "id": "staff", "label": "担当者", "type": "text", "required": false },
@@ -48,7 +48,6 @@
       "title": "ご家族情報 - ママ",
       "intro": "ママについて教えてください",
       "questions": [
-        { "id": "mama_name", "label": "お名前", "type": "text", "required": true },
         { "id": "mama_work", "label": "お仕事（職種、勤務体制、育休期間）", "type": "textarea", "required": false },
         { "id": "mama_pregnancy_history", "label": "妊娠の経過", "type": "textarea", "required": false, "placeholder": "例：つわり軽め、〇週でマイナートラブル…" },
         { "id": "mama_personality", "label": "性格", "type": "textarea", "required": false },
