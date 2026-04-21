@@ -62,7 +62,8 @@ export default function CustomersPage() {
         </svg>
         <input
           type="search"
-          className="input pl-9"
+          className="input"
+          style={{ paddingLeft: '2.25rem' }}
           placeholder="名前で検索..."
           value={query}
           onChange={e => setQuery(e.target.value)}
