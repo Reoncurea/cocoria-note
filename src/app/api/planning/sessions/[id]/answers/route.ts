@@ -5,7 +5,7 @@ import type { SectionAnswers } from '@/lib/planning/types'
 
 const patchSchema = z.object({
   section_id: z.string().min(1).max(100),
-  answers: z.record(z.unknown()),
+  answers: z.record(z.string(), z.unknown()),
 })
 
 type Params = { params: Promise<{ id: string }> }
