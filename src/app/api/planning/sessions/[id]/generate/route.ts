@@ -10,6 +10,9 @@ export async function POST(_request: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   // 回答データ取得
   const { data: answerRows, error: fetchError } = await supabase
     .from('planning_answers')

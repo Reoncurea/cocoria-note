@@ -3,51 +3,32 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Customer, Baby, Billing, Visit, CustomerActivity } from '@/types/database'
-import Link from 'next/link'
+import type { Customer, Baby, Billing } from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
-const STATUS_BADGE: Record<string, string> = {
-  '活動中': 'badge-active',
-  '契約済み': 'badge-contracted',
-  '終了': 'badge-ended',
-}
-
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const supabase = createClient()
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [babies, setBabies] = useState<Baby[]>([])
   const [billing, setBilling] = useState<Billing | null>(null)
-  const [visits, setVisits] = useState<Visit[]>([])
   const [planningAnswers, setPlanningAnswers] = useState<Record<string, Record<string, unknown>>>({})
-  const [activities, setActivities] = useState<CustomerActivity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const [cRes, bRes, biRes, vRes] = await Promise.all([
+      const [cRes, bRes, biRes] = await Promise.all([
         supabase.from('customers').select('*').eq('id', id).single(),
         supabase.from('babies').select('*').eq('customer_id', id).order('sort_order'),
         supabase.from('billing').select('*').eq('customer_id', id).single(),
-        supabase.from('visits').select('*').eq('customer_id', id).order('visit_date', { ascending: false }),
       ])
       setCustomer(cRes.data)
       setBabies(bRes.data ?? [])
       setBilling(biRes.data)
-      setVisits(vRes.data ?? [])
-
-      const { data: actData } = await supabase
-        .from('customer_activities')
-        .select('*')
-        .eq('customer_id', id)
-        .order('activity_date', { ascending: false })
-      setActivities(actData ?? [])
 
       const sessRes = await fetch(`/api/planning/sessions?customer_id=${id}`)
       const sessions = await sessRes.json()
@@ -70,7 +51,6 @@ export default function CustomerDetailPage() {
   async function toggleBilling(field: 'contracted' | 'invoiced' | 'paid', value: boolean) {
     if (!billing) return
     const today = new Date().toISOString().split('T')[0]
-
     if (field === 'contracted') {
       await supabase.from('billing').update({ contracted: value }).eq('id', billing.id)
       setBilling(prev => prev ? { ...prev, contracted: value } : prev)
@@ -87,7 +67,7 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center" style={{ minHeight: '50vh' }}>
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
           style={{ borderColor: 'var(--color-primary)' }} />
       </div>
@@ -99,25 +79,7 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <div className="px-4 pt-6 space-y-4">
-      {/* ヘッダー */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 -ml-2">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text)' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="page-title">{customer.name_kanji}</h1>
-            <span className={`badge ${STATUS_BADGE[customer.status] ?? 'badge-active'}`}>{customer.status}</span>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{customer.name_kana}</p>
-        </div>
-        <Link href={`/customers/${id}/edit`} className="btn-secondary text-sm px-3 py-2">編集</Link>
-      </div>
-
+    <div className="px-4 pt-5 space-y-4 pb-8">
       {/* カルテ情報 */}
       <div className="card space-y-3">
         <p className="section-label">カルテ情報</p>
@@ -166,11 +128,7 @@ export default function CustomerDetailPage() {
         <p className="section-label">請求・入金管理</p>
         {billing ? (
           <>
-            <ToggleRow
-              label="契約済み"
-              checked={billing.contracted}
-              onChange={v => toggleBilling('contracted', v)}
-            />
+            <ToggleRow label="契約済み" checked={billing.contracted} onChange={v => toggleBilling('contracted', v)} />
             <ToggleRow
               label="請求済み"
               checked={billing.invoiced}
@@ -189,104 +147,10 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      {/* 事前プランニング */}
-      <div className="card">
-        <div className="flex items-center justify-between">
-          <p className="section-label mb-0">事前プランニング</p>
-          <Link href={`/customers/${id}/planning`} className="btn-secondary text-sm px-3 py-2">
-            一覧・開始
-          </Link>
-        </div>
-      </div>
-
-      {/* 事前プランニング サマリー */}
+      {/* プランニング情報サマリー */}
       {Object.keys(planningAnswers).length > 0 && (
         <PlanningInfoCard answers={planningAnswers} />
       )}
-
-      {/* 対応記録（訪問以外） */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="section-label mb-0">対応記録</p>
-          <Link href={`/customers/${id}/activities`} className="btn-secondary text-sm px-3 py-2">
-            一覧・追加
-          </Link>
-        </div>
-        {activities.length === 0 ? (
-          <p className="text-sm text-center py-2" style={{ color: 'var(--color-text-muted)' }}>
-            記録がありません
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {activities.map(a => (
-              <Link key={a.id} href={`/customers/${id}/activities/${a.id}`}>
-                <div className="flex items-center justify-between p-3 rounded-xl active:opacity-70"
-                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                  <div className="flex items-start gap-2 min-w-0">
-                    <ActivityTypeBadge type={a.type} />
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>{a.title}</p>
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {format(new Date(a.activity_date), 'yyyy年M月d日', { locale: ja })}
-                        {a.staff_name ? `　${a.staff_name}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                    className="flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 訪問履歴 */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="section-label mb-0">訪問履歴</p>
-          <Link href={`/customers/${id}/visits/new`} className="btn-primary text-sm px-3 py-2">
-            ＋ 記録
-          </Link>
-        </div>
-
-        {visits.length === 0 ? (
-          <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
-            訪問履歴がありません
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {visits.map(v => (
-              <Link key={v.id} href={`/customers/${id}/visits/${v.id}`}>
-                <div className="flex items-center justify-between p-3 rounded-xl active:opacity-70"
-                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                  <div>
-                    <p className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
-                      {format(new Date(v.visit_date), 'yyyy年M月d日（E）', { locale: ja })}
-                    </p>
-                    {v.start_time && (
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {v.start_time.slice(0, 5)}{v.end_time ? ` ～ ${v.end_time.slice(0, 5)}` : ''}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {v.report_sent && (
-                      <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>送信済み</span>
-                    )}
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                      style={{ color: 'var(--color-text-muted)' }}>
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
 
       <div className="bottom-nav-spacer" />
     </div>
@@ -318,21 +182,6 @@ function ToggleRow({ label, checked, sub, onChange }: {
         <div className="toggle-thumb" />
       </label>
     </div>
-  )
-}
-
-const ACTIVITY_TYPE_COLOR: Record<string, { bg: string; color: string; label: string }> = {
-  material:  { bg: '#dbeafe', color: '#1e40af', label: '資料提供' },
-  municipal: { bg: '#dcfce7', color: '#166534', label: '自治体連携' },
-  other:     { bg: '#f3f4f6', color: '#374151', label: 'その他' },
-}
-
-function ActivityTypeBadge({ type }: { type: string }) {
-  const c = ACTIVITY_TYPE_COLOR[type] ?? ACTIVITY_TYPE_COLOR.other
-  return (
-    <span className="badge flex-shrink-0 mt-0.5" style={{ background: c.bg, color: c.color, fontSize: 11 }}>
-      {c.label}
-    </span>
   )
 }
 
@@ -375,7 +224,6 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
   return (
     <div className="card space-y-5">
       <p className="section-label">プランニング情報</p>
-
       {hasSupport && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>サポート体制・訪問頻度</p>
@@ -389,7 +237,6 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
           </div>
         </div>
       )}
-
       {hasMeal && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>食事の注意点</p>
@@ -405,14 +252,12 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
           </div>
         </div>
       )}
-
       {hasPrivacy && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>プライバシーの注意点</p>
           <InfoRow label="立入禁止エリア等" value={str('partner_support', 'no_go_zones')} />
         </div>
       )}
-
       {hasChildren && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>上の子のお世話情報</p>
@@ -424,7 +269,6 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
           </div>
         </div>
       )}
-
       {hasBaby && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>赤ちゃんのお世話情報</p>
@@ -446,7 +290,6 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
           </div>
         </div>
       )}
-
       {hasEvac && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>防災について</p>
@@ -457,7 +300,6 @@ function PlanningInfoCard({ answers }: { answers: Record<string, Record<string, 
           </div>
         </div>
       )}
-
       {hasMemo && (
         <div>
           <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-primary-dark)' }}>担当者メモ</p>

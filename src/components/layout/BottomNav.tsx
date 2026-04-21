@@ -56,7 +56,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2"
+      className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2"
       style={{
         background: 'white',
         borderTop: '1px solid var(--color-border)',

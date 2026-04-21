@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { CustomerActivity } from '@/types/database'
@@ -18,7 +18,6 @@ const TYPE_COLOR: Record<string, { bg: string; color: string; label: string }> =
 
 export default function ActivitiesPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const supabase = createClient()
   const [activities, setActivities] = useState<CustomerActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,30 +47,24 @@ export default function ActivitiesPage() {
   }
 
   return (
-    <div className="px-4 pt-6 space-y-4 pb-24">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.push(`/customers/${id}`)} className="p-2 -ml-2">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text)' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <h1 className="page-title flex-1">対応記録</h1>
-
-        <button
-          onClick={() => fetchActivities(true)}
-          disabled={refreshing}
-          className="p-2 rounded-full disabled:opacity-40"
-          title="更新"
-        >
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text-muted)' }}
-            className={refreshing ? 'animate-spin' : ''}>
-            <path d="M3 12a9 9 0 1 1 2.636 6.364" />
-            <polyline points="3 18 3 12 9 12" />
-          </svg>
-        </button>
-
+    <div className="px-4 pt-5 space-y-4 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="section-label mb-0">対応記録</p>
+          <button
+            onClick={() => fetchActivities(true)}
+            disabled={refreshing}
+            className="p-1 rounded-full disabled:opacity-40"
+            title="更新"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+              style={{ color: 'var(--color-text-muted)' }}
+              className={refreshing ? 'animate-spin' : ''}>
+              <path d="M3 12a9 9 0 1 1 2.636 6.364" />
+              <polyline points="3 18 3 12 9 12" />
+            </svg>
+          </button>
+        </div>
         <Link href={`/customers/${id}/activities/new`} className="btn-primary text-sm px-3 py-2">
           ＋ 記録
         </Link>

@@ -48,17 +48,7 @@ export default function PlanningListPage() {
   }
 
   return (
-    <div className="px-4 pt-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 -ml-2">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text)' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <h1 className="page-title flex-1">事前プランニング</h1>
-      </div>
-
+    <div className="px-4 pt-5 space-y-4 pb-8">
       <button
         onClick={startNew}
         disabled={creating}

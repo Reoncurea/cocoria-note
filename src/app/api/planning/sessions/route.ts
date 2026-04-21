@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 // GET: 顧客IDで絞り込んだセッション一覧
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const customerId = request.nextUrl.searchParams.get('customer_id')
 
   let query = supabase
