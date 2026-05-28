@@ -14,8 +14,6 @@ export interface Question {
   unit?: string;
   allow_other?: boolean;
   default?: string;
-  source?: 'customer';
-  customer_field?: string;
 }
 
 export interface ShowIf {

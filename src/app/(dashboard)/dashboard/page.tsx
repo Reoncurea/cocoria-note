@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 interface DashboardData {
   todayVisits: { id: string; customer_id: string; start_time: string | null; customers: { name_kanji: string } | null }[]
@@ -83,12 +84,7 @@ export default function DashboardPage() {
   }, [])
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: 'var(--color-primary)' }} />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   const today = format(new Date(), 'M月d日（E）', { locale: ja })

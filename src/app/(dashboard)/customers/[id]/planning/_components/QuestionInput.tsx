@@ -49,14 +49,6 @@ export default function QuestionInput({ question, onSubmit }: Props) {
     outline: 'none',
   } as React.CSSProperties
 
-  // type別のinputMode（モバイルキーボード最適化）
-  const inputModeMap: Record<string, React.HTMLAttributes<HTMLInputElement>['inputMode']> = {
-    tel: 'tel',
-    email: 'email',
-    number: 'numeric',
-  }
-  const inputMode = inputModeMap[question.type] ?? 'text'
-
   if (question.type === 'select') {
     return (
       <div className="flex flex-col gap-2">
@@ -109,8 +101,6 @@ export default function QuestionInput({ question, onSubmit }: Props) {
             placeholder="その他（自由記入）"
             value={otherText}
             onChange={e => setOtherText(e.target.value)}
-            inputMode="text"
-            lang="ja"
           />
         )}
         <button
@@ -133,8 +123,6 @@ export default function QuestionInput({ question, onSubmit }: Props) {
           value={value}
           onChange={e => setValue(e.target.value)}
           rows={3}
-          autoFocus
-          lang="ja"
         />
         <button
           onClick={handleTextSubmit}
@@ -158,9 +146,6 @@ export default function QuestionInput({ question, onSubmit }: Props) {
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleTextSubmit() }}
-          autoFocus
-          inputMode={inputMode}
-          lang={question.type === 'tel' || question.type === 'email' ? undefined : 'ja'}
         />
         {question.unit && (
           <span className="text-sm flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>

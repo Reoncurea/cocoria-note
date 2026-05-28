@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import questionsConfig from '@/lib/planning/questions.json'
 import type { AllAnswers, AnswerValue, Section } from '@/lib/planning/types'
-import { createClient } from '@/lib/supabase/client'
 import ProgressBar from '../_components/ProgressBar'
 import ChatMessage from '../_components/ChatMessage'
 import QuestionInput from '../_components/QuestionInput'
@@ -46,46 +45,25 @@ async function saveSection(sessionId: string, sectionId: string, sectionAnswers:
 export default function PlanningChatPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
   const router = useRouter()
-  const supabase = createClient()
 
-  const [answers, setAnswers] = useState<AllAnswers>({})
-  const [sectionIdx, setSectionIdx] = useState(0)
-  const [questionIdx, setQuestionIdx] = useState(0)
-  const [chatLog, setChatLog] = useState<ChatItem[]>([])
-  const [editTarget, setEditTarget] = useState<{ sectionIdx: number; questionIdx: number } | null>(null)
-  const [repeatCount, setRepeatCount] = useState(0)
-  const [askRepeat, setAskRepeat] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [customerData, setCustomerData] = useState<Record<string, string> | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
-
-  // 顧客情報を取得
-  useEffect(() => {
-    supabase
-      .from('customers')
-      .select('name_kanji, address, phone, email')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        setCustomerData({
-          name_kanji: data?.name_kanji ?? '',
-          address: data?.address ?? '',
-          phone: data?.phone ?? '',
-          email: data?.email ?? '',
-        })
-      })
-  }, [id])
-
-  // 初期化：最初のセクション intro + 最初の質問を表示
-  useEffect(() => {
+  const initialChatLog = (): ChatItem[] => {
     const init: ChatItem[] = []
     const firstSection = sections[0]
     if (firstSection.intro) {
       init.push({ role: 'bot', text: firstSection.intro })
     }
     init.push({ role: 'bot', text: firstSection.questions[0].label })
-    setChatLog(init)
-  }, [])
+    return init
+  }
+
+  const [answers, setAnswers] = useState<AllAnswers>({})
+  const [sectionIdx, setSectionIdx] = useState(0)
+  const [questionIdx, setQuestionIdx] = useState(0)
+  const [chatLog, setChatLog] = useState<ChatItem[]>(initialChatLog)
+  const [repeatCount, setRepeatCount] = useState(0)
+  const [askRepeat, setAskRepeat] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   // 新しいメッセージが追加されたら最下部にスクロール
   useEffect(() => {
@@ -95,20 +73,6 @@ export default function PlanningChatPage() {
   const visibleSectionCount = sections.filter(s => shouldShowSection(s, answers)).length
   const currentSection = sections[sectionIdx]
   const currentQuestion = currentSection?.questions[questionIdx]
-
-  // 顧客情報ソースの質問を自動回答
-  useEffect(() => {
-    if (!customerData) return
-    if (!currentQuestion) return
-    if (currentQuestion.source !== 'customer') return
-
-    const value = customerData[currentQuestion.customer_field ?? ''] ?? ''
-    const timer = setTimeout(() => {
-      handleAnswer(value || null)
-    }, 300)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion?.id, customerData])
 
   async function handleAnswer(value: AnswerValue) {
     if (!currentSection || !currentQuestion) return
@@ -121,14 +85,10 @@ export default function PlanningChatPage() {
     const newAnswers: AllAnswers = { ...answers, [currentSection.id]: newSectionAnswers }
     setAnswers(newAnswers)
 
-    // チャットログに回答を追加（顧客情報由来はメモ付き）
-    const displayText = currentQuestion.source === 'customer'
-      ? `${answerToText(value)}　（顧客情報より）`
-      : answerToText(value)
-
+    // チャットログに回答を追加
     setChatLog(prev => [
       ...prev,
-      { role: 'user', text: displayText, sectionIdx, questionIdx },
+      { role: 'user', text: answerToText(value), sectionIdx, questionIdx },
     ])
 
     // セクション内の次の質問 or セクション完了
@@ -167,6 +127,7 @@ export default function PlanningChatPage() {
     }
 
     if (next >= sections.length) {
+      // 全完了 → レビューページへ
       router.push(`/customers/${id}/planning/${sessionId}/review`)
       return
     }
@@ -191,10 +152,10 @@ export default function PlanningChatPage() {
     setChatLog(prev => [...prev, ...msgs])
   }
 
+  // 修正ボタンから特定の質問に戻る
   function startEdit(si: number, qi: number) {
     setSectionIdx(si)
     setQuestionIdx(qi)
-    setEditTarget({ sectionIdx: si, questionIdx: qi })
     const q = sections[si].questions[qi]
     setChatLog(prev => [...prev, { role: 'bot', text: `「${q.label}」を修正します。` }])
     setChatLog(prev => [...prev, { role: 'bot', text: q.label }])
@@ -208,9 +169,6 @@ export default function PlanningChatPage() {
       </div>
     )
   }
-
-  // 顧客情報ソースの質問は自動処理中（入力UI不要）
-  const isAutoFilling = currentQuestion.source === 'customer'
 
   return (
     <div className="flex flex-col h-svh">
@@ -235,6 +193,7 @@ export default function PlanningChatPage() {
           />
         ))}
 
+        {/* repeatable セクションの「もう1人追加？」 */}
         {askRepeat && (
           <div className="space-y-2">
             <ChatMessage
@@ -242,8 +201,18 @@ export default function PlanningChatPage() {
               text={`${currentSection.repeatable?.itemLabel ?? 'お子さま'}をもう1人追加しますか？`}
             />
             <div className="flex gap-2 justify-end">
-              <button onClick={handleRepeatYes} className="btn-primary text-sm py-2 px-5">はい</button>
-              <button onClick={() => goToNextSection()} className="btn-secondary text-sm py-2 px-5">いいえ</button>
+              <button
+                onClick={handleRepeatYes}
+                className="btn-primary text-sm py-2 px-5"
+              >
+                はい
+              </button>
+              <button
+                onClick={() => goToNextSection()}
+                className="btn-secondary text-sm py-2 px-5"
+              >
+                いいえ
+              </button>
             </div>
           </div>
         )}
@@ -255,7 +224,7 @@ export default function PlanningChatPage() {
       </div>
 
       {/* 入力エリア */}
-      {!askRepeat && !isAutoFilling && (
+      {!askRepeat && (
         <div
           className="px-4 py-4 border-t space-y-2"
           style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)' }}
@@ -274,13 +243,6 @@ export default function PlanningChatPage() {
             question={currentQuestion}
             onSubmit={handleAnswer}
           />
-        </div>
-      )}
-
-      {/* 顧客情報自動入力中 */}
-      {!askRepeat && isAutoFilling && (
-        <div className="px-4 py-3 border-t text-center" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>顧客情報を確認中...</p>
         </div>
       )}
     </div>

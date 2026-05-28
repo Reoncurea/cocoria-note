@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAuth, dbError } from '@/lib/supabase/api-helpers'
+import { z } from 'zod'
 
-// GET: 顧客IDで絞り込んだセッション一覧
+const createSessionSchema = z.object({
+  customer_id: z.string().uuid(),
+}).strict()
+
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const customerId = request.nextUrl.searchParams.get('customer_id')
+  if (customerId && !z.string().uuid().safeParse(customerId).success) {
+    return NextResponse.json({ error: 'Invalid customer_id' }, { status: 400 })
+  }
 
   let query = supabase
     .from('planning_sessions')
@@ -20,27 +25,25 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return NextResponse.json(data)
 }
 
-// POST: 新規セッション作成
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { user, supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
-  const body = await request.json() as { customer_id: string }
-  if (!body.customer_id) {
-    return NextResponse.json({ error: 'customer_id is required' }, { status: 400 })
+  const result = createSessionSchema.safeParse(await request.json())
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
   }
 
   const { data, error } = await supabase
     .from('planning_sessions')
-    .insert({ customer_id: body.customer_id, staff_id: user.id })
+    .insert({ customer_id: result.data.customer_id, staff_id: user!.id })
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return NextResponse.json(data, { status: 201 })
 }

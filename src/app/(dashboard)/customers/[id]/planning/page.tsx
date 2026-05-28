@@ -6,18 +6,14 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { PLANNING_STATUS_LABEL } from '@/lib/constants/statuses'
 
 interface PlanningSession {
   id: string
   status: 'in_progress' | 'completed' | 'archived'
   created_at: string
   completed_at: string | null
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  in_progress: '入力中',
-  completed: '完了',
-  archived: 'アーカイブ',
 }
 
 export default function PlanningListPage() {
@@ -58,7 +54,17 @@ export default function PlanningListPage() {
   }
 
   return (
-    <div className="px-4 pt-5 space-y-4 pb-8">
+    <div className="px-4 pt-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.back()} className="p-2 -ml-2">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+            style={{ color: 'var(--color-text)' }}>
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <h1 className="page-title flex-1">事前プランニング</h1>
+      </div>
+
       <button
         onClick={startNew}
         disabled={creating}
@@ -68,10 +74,7 @@ export default function PlanningListPage() {
       </button>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-            style={{ borderColor: 'var(--color-primary)' }} />
-        </div>
+        <LoadingSpinner />
       ) : sessions.length === 0 ? (
         <p className="text-center py-12 text-sm" style={{ color: 'var(--color-text-muted)' }}>
           プランニング履歴がありません
@@ -80,7 +83,6 @@ export default function PlanningListPage() {
         <div className="space-y-2">
           {sessions.map(s => (
             <div key={s.id} className="card flex items-center gap-3">
-              {/* メインボタン */}
               <button
                 onClick={() => router.push(
                   s.status === 'completed'
@@ -96,7 +98,7 @@ export default function PlanningListPage() {
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                     {s.status === 'in_progress' ? '続きから入力' : s.completed_at
                       ? `完了: ${format(new Date(s.completed_at), 'M月d日', { locale: ja })}`
-                      : STATUS_LABEL[s.status]}
+                      : PLANNING_STATUS_LABEL[s.status]}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -106,7 +108,7 @@ export default function PlanningListPage() {
                       ? { background: '#fef9c3', color: '#854d0e' }
                       : { background: '#dcfce7', color: '#166534' }}
                   >
-                    {STATUS_LABEL[s.status]}
+                    {PLANNING_STATUS_LABEL[s.status]}
                   </span>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
                     style={{ color: 'var(--color-text-muted)' }}>
@@ -115,7 +117,6 @@ export default function PlanningListPage() {
                 </div>
               </button>
 
-              {/* 削除ボタン */}
               {confirmId === s.id ? (
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

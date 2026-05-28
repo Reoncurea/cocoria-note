@@ -18,17 +18,23 @@ export default function SettingsPage() {
   const [csvLoading, setCsvLoading] = useState(false)
 
   useEffect(() => {
-    loadTags()
-  }, [])
+    let ignore = false
 
-  async function loadTags() {
-    const { data } = await supabase
-      .from('support_tags')
-      .select('*')
-      .order('sort_order')
-    setTags(data ?? [])
-    setLoading(false)
-  }
+    async function loadTags() {
+      const { data } = await supabase
+        .from('support_tags')
+        .select('*')
+        .order('sort_order')
+
+      if (!ignore) {
+        setTags(data ?? [])
+        setLoading(false)
+      }
+    }
+
+    void loadTags()
+    return () => { ignore = true }
+  }, [supabase])
 
   async function addTag() {
     const name = newTagName.trim()

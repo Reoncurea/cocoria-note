@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAuth, dbError } from '@/lib/supabase/api-helpers'
 import { z } from 'zod'
 
 const patchSchema = z.object({
@@ -16,13 +16,13 @@ type Ctx = { params: Promise<{ id: string; activityId: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   const { activityId } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const result = patchSchema.safeParse(await req.json())
-  if (!result.success) return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  }
 
   const { data, error } = await supabase
     .from('customer_activities')
@@ -30,21 +30,19 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     .eq('id', activityId)
     .select()
     .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const { activityId } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const { error } = await supabase
     .from('customer_activities')
     .delete()
     .eq('id', activityId)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return new NextResponse(null, { status: 204 })
 }

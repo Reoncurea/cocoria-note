@@ -1,34 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { z } from 'zod'
 import type { SectionAnswers } from '@/lib/planning/types'
-
-const patchSchema = z.object({
-  section_id: z.string().min(1).max(100),
-  answers: z.record(z.string(), z.unknown()),
-})
+import { requireAuth, dbError } from '@/lib/supabase/api-helpers'
+import { z } from 'zod'
 
 type Params = { params: Promise<{ id: string }> }
 
+const patchSchema = z.object({
+  section_id: z.string().min(1),
+  answers: z.record(z.string(), z.unknown()),
+}).strict()
+
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const result = patchSchema.safeParse(await request.json())
-  if (!result.success) return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  }
+  const body = result.data as { section_id: string; answers: SectionAnswers }
 
   const { data, error } = await supabase
     .from('planning_answers')
     .upsert(
-      { session_id: id, section_id: result.data.section_id, answers: result.data.answers as SectionAnswers },
+      { session_id: id, section_id: body.section_id, answers: body.answers },
       { onConflict: 'session_id,section_id' }
     )
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return NextResponse.json(data)
 }

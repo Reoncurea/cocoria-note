@@ -8,24 +8,11 @@ import { createClient } from '@/lib/supabase/client'
 import type { CustomerActivity } from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_OPTIONS } from '@/lib/constants/activities'
 
-const TYPE_LABEL: Record<string, string> = {
-  material: '資料提供',
-  municipal: '自治体連携',
-  other: 'その他',
-}
-const TYPE_COLOR: Record<string, { bg: string; color: string }> = {
-  material:  { bg: '#dbeafe', color: '#1e40af' },
-  municipal: { bg: '#dcfce7', color: '#166534' },
-  other:     { bg: '#f3f4f6', color: '#374151' },
-}
-
-const TYPE_OPTIONS = [
-  { value: 'material', label: '資料提供' },
-  { value: 'municipal', label: '自治体連携' },
-  { value: 'other', label: 'その他' },
-] as const
-type ActivityType = typeof TYPE_OPTIONS[number]['value']
+type ActivityType = typeof ACTIVITY_TYPE_OPTIONS[number]['value']
 
 export default function ActivityDetailPage() {
   const { id, activityId } = useParams<{ id: string; activityId: string }>()
@@ -101,16 +88,11 @@ export default function ActivityDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: 'var(--color-primary)' }} />
-      </div>
-    )
+    return <LoadingSpinner />
   }
   if (!activity) return null
 
-  const colors = TYPE_COLOR[activity.type] ?? TYPE_COLOR.other
+  const colors = ACTIVITY_TYPES[activity.type as keyof typeof ACTIVITY_TYPES] ?? ACTIVITY_TYPES.other
 
   if (editing) {
     return (
@@ -125,14 +107,12 @@ export default function ActivityDetailPage() {
           <h1 className="page-title flex-1">対応記録を編集</h1>
         </div>
 
-        {error && (
-          <p className="text-sm px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#991b1b' }}>{error}</p>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         <div className="card space-y-3">
           <p className="section-label">種別</p>
           <div className="flex gap-2">
-            {TYPE_OPTIONS.map(opt => (
+            {ACTIVITY_TYPE_OPTIONS.map(opt => (
               <button key={opt.value} type="button" onClick={() => setType(opt.value)}
                 className="text-sm py-1.5 px-3 rounded-full transition-colors"
                 style={type === opt.value
@@ -207,7 +187,7 @@ export default function ActivityDetailPage() {
         <div className="flex items-center gap-2">
           <span className="badge text-xs font-bold px-2 py-0.5 rounded-full"
             style={{ background: colors.bg, color: colors.color }}>
-            {TYPE_LABEL[activity.type]}
+            {(ACTIVITY_TYPES[activity.type as keyof typeof ACTIVITY_TYPES] ?? ACTIVITY_TYPES.other).label}
           </span>
           <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             {format(new Date(activity.activity_date), 'yyyy年M月d日（E）', { locale: ja })}

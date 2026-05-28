@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { generateSuggestions } from '@/lib/planning/engine'
 import type { AllAnswers } from '@/lib/planning/types'
+import { requireAuth, dbError } from '@/lib/supabase/api-helpers'
 
 type Params = { params: Promise<{ id: string }> }
 
-// POST: 全回答を読み込んでルールエンジンを走らせ、提案をDBに保存
 export async function POST(_request: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  // 回答データ取得
   const { data: answerRows, error: fetchError } = await supabase
     .from('planning_answers')
     .select('section_id, answers')
     .eq('session_id', id)
 
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  if (fetchError) return dbError(fetchError)
 
   // AllAnswers 形式に変換
   const all: AllAnswers = {}
@@ -45,7 +41,7 @@ export async function POST(_request: NextRequest, { params }: Params) {
     }))
 
     const { error: insertError } = await supabase.from('planning_suggestions').insert(rows)
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
+    if (insertError) return dbError(insertError)
   }
 
   // セッションを completed に更新

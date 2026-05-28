@@ -7,6 +7,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { SupportTag } from '@/types/database'
 import { useForm, useFieldArray } from 'react-hook-form'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { TRANSPORT_OPTIONS } from '@/lib/constants/forms'
 
 interface ServiceRow { time_label: string; content: string; detail: string }
 
@@ -225,9 +227,7 @@ export default function VisitNewPage() {
               <label className="form-label">訪問手段</label>
               <select className="input" {...register('transport')}>
                 <option value="">選択</option>
-                <option value="車">車</option>
-                <option value="電車">電車</option>
-                <option value="その他">その他</option>
+                {TRANSPORT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
 
@@ -384,11 +384,7 @@ export default function VisitNewPage() {
             </div>
           </div>
 
-          {error && (
-            <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#fef2f2', color: '#dc2626' }}>
-              {error}
-            </div>
-          )}
+          {error && <ErrorAlert message={error} />}
 
           <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-60">
             {saving ? '保存中...' : '保存する'}

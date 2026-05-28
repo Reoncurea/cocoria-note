@@ -5,14 +5,10 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { ACTIVITY_TYPE_OPTIONS } from '@/lib/constants/activities'
 
-const TYPE_OPTIONS = [
-  { value: 'material', label: '資料提供' },
-  { value: 'municipal', label: '自治体連携' },
-  { value: 'other', label: 'その他' },
-] as const
-
-type ActivityType = typeof TYPE_OPTIONS[number]['value']
+type ActivityType = typeof ACTIVITY_TYPE_OPTIONS[number]['value']
 
 export default function ActivityNewPage() {
   const { id } = useParams<{ id: string }>()
@@ -84,7 +80,7 @@ export default function ActivityNewPage() {
       <div className="card space-y-3">
         <p className="section-label">種別</p>
         <div className="flex gap-2">
-          {TYPE_OPTIONS.map(opt => (
+          {ACTIVITY_TYPE_OPTIONS.map(opt => (
             <button
               key={opt.value}
               type="button"
@@ -184,9 +180,7 @@ export default function ActivityNewPage() {
       {/* 固定フッター */}
       <div className="fixed bottom-20 left-0 right-0 px-4 py-4 border-t space-y-2"
         style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)' }}>
-        {error && (
-          <p className="text-sm px-3 py-2 rounded-xl text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>{error}</p>
-        )}
+        {error && <ErrorAlert message={error} />}
         <button
           onClick={handleSave}
           disabled={saving}

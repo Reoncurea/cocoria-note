@@ -26,35 +26,40 @@ export default function VisitDetailPage() {
   const [addingHour, setAddingHour] = useState('')
 
   useEffect(() => {
-    load()
-  }, [visitId])
+    let ignore = false
 
-  async function load() {
-    const [vRes, srRes, bcRes, vtRes] = await Promise.all([
-      supabase.from('visits').select('*').eq('id', visitId).single(),
-      supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
-      supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
-      supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
-    ])
-    setVisit(vRes.data)
-    setServiceRecords(srRes.data ?? [])
-    setBreathCheck(bcRes.data)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setTags((vtRes.data ?? []).map((vt: any) => {
-      const st = vt.support_tags
-      if (Array.isArray(st)) return st[0]?.name ?? ''
-      return st?.name ?? ''
-    }).filter(Boolean))
+    async function load() {
+      const [vRes, srRes, bcRes, vtRes] = await Promise.all([
+        supabase.from('visits').select('*').eq('id', visitId).single(),
+        supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
+        supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
+        supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
+      ])
 
-    if (bcRes.data) {
-      const { data: cells } = await supabase
-        .from('breath_check_cells')
-        .select('*')
-        .eq('breath_check_id', bcRes.data.id)
-      setBreathCells(cells ?? [])
+      if (ignore) return
+      setVisit(vRes.data)
+      setServiceRecords(srRes.data ?? [])
+      setBreathCheck(bcRes.data)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setTags((vtRes.data ?? []).map((vt: any) => {
+        const st = vt.support_tags
+        if (Array.isArray(st)) return st[0]?.name ?? ''
+        return st?.name ?? ''
+      }).filter(Boolean))
+
+      if (bcRes.data) {
+        const { data: cells } = await supabase
+          .from('breath_check_cells')
+          .select('*')
+          .eq('breath_check_id', bcRes.data.id)
+        if (!ignore) setBreathCells(cells ?? [])
+      }
+      if (!ignore) setLoading(false)
     }
-    setLoading(false)
-  }
+
+    void load()
+    return () => { ignore = true }
+  }, [supabase, visitId])
 
   async function toggleCell(hourLabel: string, minute: number) {
     if (!breathCheck) return

@@ -5,32 +5,14 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { customerSchema } from '@/lib/validation/customer'
+import { TRANSPORT_OPTIONS } from '@/lib/constants/forms'
 
-const babySchema = z.object({
-  name: z.string().optional(),
-  birth_date: z.string().optional(),
-  due_date: z.string().optional(),
-})
-
-const schema = z.object({
-  name_kanji: z.string().min(1, '氏名（漢字）は必須です'),
-  name_kana: z.string().min(1, 'フリガナは必須です'),
-  age: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email('正しいメールアドレスを入力してください').optional().or(z.literal('')),
-  line_id: z.string().optional(),
-  address: z.string().optional(),
-  transport: z.string().optional(),
-  inquiry_date: z.string().optional(),
-  status: z.string().default('活動中'),
-  notes: z.string().optional(),
-  babies: z.array(babySchema).default([]),
-})
-
-type FormValues = z.infer<typeof schema>
+type FormValues = z.infer<typeof customerSchema>
 
 export default function CustomerNewPage() {
   const router = useRouter()
@@ -38,9 +20,8 @@ export default function CustomerNewPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, control, handleSubmit, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(customerSchema) as Resolver<FormValues>,
     defaultValues: { status: '活動中', babies: [] },
   })
 
@@ -211,9 +192,7 @@ export default function CustomerNewPage() {
             <label className="form-label">訪問手段</label>
             <select className="input" {...register('transport')}>
               <option value="">選択してください</option>
-              <option value="車">車</option>
-              <option value="電車">電車</option>
-              <option value="その他">その他</option>
+              {TRANSPORT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
 
@@ -238,11 +217,7 @@ export default function CustomerNewPage() {
           <textarea className="input" rows={4} placeholder="自由記載..." {...register('notes')} />
         </div>
 
-        {error && (
-          <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#fef2f2', color: '#dc2626' }}>
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-60">
           {saving ? '保存中...' : '登録する'}

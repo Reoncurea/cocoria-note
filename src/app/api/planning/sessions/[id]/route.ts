@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAuth, dbError } from '@/lib/supabase/api-helpers'
 import { z } from 'zod'
-
-const patchSchema = z.object({
-  status: z.enum(['in_progress', 'completed', 'archived']).optional(),
-  current_section: z.string().max(100).nullable().optional(),
-  completed_at: z.string().datetime().nullable().optional(),
-}).strict()
 
 type Params = { params: Promise<{ id: string }> }
 
+const patchSchema = z.object({
+  status: z.enum(['in_progress', 'completed', 'archived']).optional(),
+  current_section: z.string().nullable().optional(),
+  completed_at: z.string().datetime().nullable().optional(),
+}).strict()
+
 export async function GET(_request: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const [sessionRes, answersRes, suggestionsRes] = await Promise.all([
     supabase.from('planning_sessions').select('*').eq('id', id).single(),
@@ -36,13 +34,13 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const result = patchSchema.safeParse(await request.json())
-  if (!result.success) return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  }
 
   const { data, error } = await supabase
     .from('planning_sessions')
@@ -51,18 +49,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return NextResponse.json(data)
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const { error } = await supabase.from('planning_sessions').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return dbError(error)
   return new NextResponse(null, { status: 204 })
 }

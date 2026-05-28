@@ -5,33 +5,15 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { editCustomerSchema } from '@/lib/validation/customer'
+import { TRANSPORT_OPTIONS } from '@/lib/constants/forms'
 
-const babySchema = z.object({
-  id: z.string().optional(),       // 既存レコードのID（新規はundefined）
-  name: z.string().optional(),
-  birth_date: z.string().optional(),
-  due_date: z.string().optional(),
-})
-
-const schema = z.object({
-  name_kanji: z.string().min(1, '氏名（漢字）は必須です'),
-  name_kana: z.string().min(1, 'フリガナは必須です'),
-  age: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email('正しいメールアドレスを入力してください').optional().or(z.literal('')),
-  line_id: z.string().optional(),
-  address: z.string().optional(),
-  transport: z.string().optional(),
-  inquiry_date: z.string().optional(),
-  status: z.string().default('活動中'),
-  notes: z.string().optional(),
-  babies: z.array(babySchema).default([]),
-})
-
-type FormValues = z.infer<typeof schema>
+type FormValues = z.infer<typeof editCustomerSchema>
 
 export default function CustomerEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -44,9 +26,8 @@ export default function CustomerEditPage() {
   const [error, setError] = useState<string | null>(null)
   const [originalBabyIds, setOriginalBabyIds] = useState<string[]>([])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(editCustomerSchema) as Resolver<FormValues>,
     defaultValues: { status: '活動中', babies: [] },
   })
 
@@ -161,12 +142,7 @@ export default function CustomerEditPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: 'var(--color-primary)' }} />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
@@ -277,9 +253,7 @@ export default function CustomerEditPage() {
             <label className="form-label">訪問手段</label>
             <select className="input" {...register('transport')}>
               <option value="">選択してください</option>
-              <option value="車">車</option>
-              <option value="電車">電車</option>
-              <option value="その他">その他</option>
+              {TRANSPORT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
 
@@ -304,11 +278,7 @@ export default function CustomerEditPage() {
           <textarea className="input" rows={4} placeholder="自由記載..." {...register('notes')} />
         </div>
 
-        {error && (
-          <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#fef2f2', color: '#dc2626' }}>
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-60">
           {saving ? '保存中...' : '保存する'}
