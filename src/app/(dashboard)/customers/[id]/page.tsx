@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Customer, Baby } from '@/types/database'
+import ContractHistory from '@/components/customer/ContractHistory'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -104,6 +105,8 @@ export default function CustomerDetailPage() {
       {Object.keys(planningAnswers).length > 0 && (
         <PlanningInfoCard answers={planningAnswers} />
       )}
+
+      <ContractHistory customerId={id} />
 
       <div className="bottom-nav-spacer" />
     </div>
