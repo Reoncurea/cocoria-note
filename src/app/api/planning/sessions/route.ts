@@ -4,7 +4,12 @@ import { z } from 'zod'
 
 const createSessionSchema = z.object({
   customer_id: z.string().uuid(),
+  contract_id: z.string().uuid().nullable().optional(),
 }).strict()
+
+function today() {
+  return new Date().toISOString().split('T')[0]
+}
 
 export async function GET(request: NextRequest) {
   const { supabase, error: authError } = await requireAuth()
@@ -17,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('planning_sessions')
-    .select('*')
+    .select('*, customer_contracts(title, contracted_date)')
     .order('created_at', { ascending: false })
 
   if (customerId) {
@@ -38,12 +43,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
   }
 
+  const { customer_id, contract_id } = result.data
+
   const { data, error } = await supabase
     .from('planning_sessions')
-    .insert({ customer_id: result.data.customer_id, staff_id: user!.id })
+    .insert({ customer_id, contract_id: contract_id ?? null, staff_id: user!.id })
     .select()
     .single()
 
   if (error) return dbError(error)
+
+  const [customerRes, babyRes] = await Promise.all([
+    supabase.from('customers').select('name_kanji, name_kana, address, phone, email').eq('id', customer_id).single(),
+    supabase.from('babies').select('due_date, birth_date').eq('customer_id', customer_id).order('sort_order').limit(1),
+  ])
+
+  const customer = customerRes.data
+  const baby = babyRes.data?.[0]
+  const basicAnswers = {
+    name: customer?.name_kanji ?? '',
+    name_kana: customer?.name_kana ?? '',
+    address: customer?.address ?? '',
+    phone: customer?.phone ?? '',
+    email: customer?.email ?? '',
+    due_date: baby?.due_date ?? baby?.birth_date ?? '',
+    record_date: today(),
+  }
+
+  await supabase
+    .from('planning_answers')
+    .upsert(
+      { session_id: data.id, section_id: 'basic', answers: basicAnswers },
+      { onConflict: 'session_id,section_id' }
+    )
+
   return NextResponse.json(data, { status: 201 })
 }

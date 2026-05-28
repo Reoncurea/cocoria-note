@@ -21,10 +21,11 @@ const sections = questionsConfig.sections as Section[]
 
 function shouldShowSection(section: Section, answers: AllAnswers): boolean {
   if (!section.show_if) return true
-  const { section: sec, question: qid, includes } = section.show_if
+  const { section: sec, question: qid, includes, equals } = section.show_if
   const val = answers[sec]?.[qid]
   if (!val) return false
   const str = Array.isArray(val) ? val.join(' ') : String(val)
+  if (equals) return str === equals
   return includes ? str.includes(includes) : true
 }
 
@@ -32,6 +33,35 @@ function answerToText(value: AnswerValue): string {
   if (value == null || value === '') return '（スキップ）'
   if (Array.isArray(value)) return value.length > 0 ? value.join('、') : '（スキップ）'
   return String(value)
+}
+
+function hasAnswer(value: AnswerValue | undefined): boolean {
+  if (value == null || value === '') return false
+  if (Array.isArray(value)) return value.length > 0
+  return true
+}
+
+function isBasicComplete(answers: AllAnswers): boolean {
+  const basic = sections.find(s => s.id === 'basic')
+  if (!basic) return false
+  return basic.questions
+    .filter(q => q.required)
+    .every(q => hasAnswer(answers.basic?.[q.id]))
+}
+
+function firstVisibleSectionIndex(answers: AllAnswers): number {
+  let index = isBasicComplete(answers) ? 1 : 0
+  while (index < sections.length && !shouldShowSection(sections[index], answers)) {
+    index++
+  }
+  return Math.min(index, sections.length - 1)
+}
+
+function buildChatLog(section: Section): ChatItem[] {
+  const messages: ChatItem[] = []
+  if (section.intro) messages.push({ role: 'bot', text: section.intro })
+  messages.push({ role: 'bot', text: section.questions[0].label })
+  return messages
 }
 
 async function saveSection(sessionId: string, sectionId: string, sectionAnswers: AllAnswers[string]) {
@@ -46,26 +76,36 @@ export default function PlanningChatPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
   const router = useRouter()
 
-  const initialChatLog = (): ChatItem[] => {
-    const init: ChatItem[] = []
-    const firstSection = sections[0]
-    if (firstSection.intro) {
-      init.push({ role: 'bot', text: firstSection.intro })
-    }
-    init.push({ role: 'bot', text: firstSection.questions[0].label })
-    return init
-  }
-
   const [answers, setAnswers] = useState<AllAnswers>({})
   const [sectionIdx, setSectionIdx] = useState(0)
   const [questionIdx, setQuestionIdx] = useState(0)
-  const [chatLog, setChatLog] = useState<ChatItem[]>(initialChatLog)
+  const [chatLog, setChatLog] = useState<ChatItem[]>([])
   const [repeatCount, setRepeatCount] = useState(0)
   const [askRepeat, setAskRepeat] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // 新しいメッセージが追加されたら最下部にスクロール
+  useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/planning/sessions/${sessionId}`)
+      const data = await res.json()
+      const map: AllAnswers = {}
+      for (const row of data.answers ?? []) {
+        map[row.section_id] = row.answers
+      }
+
+      const startIndex = firstVisibleSectionIndex(map)
+      const startSection = sections[startIndex]
+      setAnswers(map)
+      setSectionIdx(startIndex)
+      setQuestionIdx(0)
+      setChatLog(buildChatLog(startSection))
+      setLoading(false)
+    }
+    load()
+  }, [sessionId])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatLog, askRepeat])
@@ -77,7 +117,6 @@ export default function PlanningChatPage() {
   async function handleAnswer(value: AnswerValue) {
     if (!currentSection || !currentQuestion) return
 
-    // 回答を状態に追加
     const newSectionAnswers = {
       ...(answers[currentSection.id] ?? {}),
       [currentQuestion.id]: value,
@@ -90,9 +129,7 @@ export default function PlanningChatPage() {
       { role: 'user', text: answerToText(value), sectionIdx, questionIdx },
     ])
 
-    // セクション内の次の質問 or セクション完了
     const isLastQuestion = questionIdx === currentSection.questions.length - 1
-
     if (!isLastQuestion) {
       const nextQ = currentSection.questions[questionIdx + 1]
       setQuestionIdx(questionIdx + 1)
@@ -102,12 +139,10 @@ export default function PlanningChatPage() {
       return
     }
 
-    // セクション完了 → 保存
     setSaving(true)
     await saveSection(sessionId, currentSection.id, newSectionAnswers)
     setSaving(false)
 
-    // repeatable セクションの場合：もう1人追加するか確認
     if (currentSection.repeatable && repeatCount < (currentSection.repeatable.max - 1)) {
       setAskRepeat(true)
       return
@@ -133,32 +168,26 @@ export default function PlanningChatPage() {
     const nextSection = sections[next]
     setSectionIdx(next)
     setQuestionIdx(0)
-
-    const msgs: ChatItem[] = []
-    if (nextSection.intro) msgs.push({ role: 'bot', text: nextSection.intro })
-    msgs.push({ role: 'bot', text: nextSection.questions[0].label })
-    setChatLog(prev => [...prev, ...msgs])
+    setChatLog(prev => [...prev, ...buildChatLog(nextSection)])
   }
 
   function handleRepeatYes() {
     setAskRepeat(false)
     setRepeatCount(c => c + 1)
     setQuestionIdx(0)
-    const msgs: ChatItem[] = []
-    if (currentSection.intro) msgs.push({ role: 'bot', text: currentSection.intro })
-    msgs.push({ role: 'bot', text: currentSection.questions[0].label })
-    setChatLog(prev => [...prev, ...msgs])
+    if (currentSection) {
+      setChatLog(prev => [...prev, ...buildChatLog(currentSection)])
+    }
   }
 
   function startEdit(si: number, qi: number) {
     setSectionIdx(si)
     setQuestionIdx(qi)
     const q = sections[si].questions[qi]
-    setChatLog(prev => [...prev, { role: 'bot', text: `「${q.label}」を修正します。` }])
-    setChatLog(prev => [...prev, { role: 'bot', text: q.label }])
+    setChatLog(prev => [...prev, { role: 'bot', text: `「${q.label}」を修正します。` }, { role: 'bot', text: q.label }])
   }
 
-  if (!currentSection || !currentQuestion) {
+  if (loading || !currentSection || !currentQuestion) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
@@ -175,7 +204,6 @@ export default function PlanningChatPage() {
         title={currentSection.title}
       />
 
-      {/* チャットログ */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {chatLog.map((msg, i) => (
           <ChatMessage
@@ -194,7 +222,7 @@ export default function PlanningChatPage() {
           <div className="space-y-2">
             <ChatMessage
               role="bot"
-              text={`${currentSection.repeatable?.itemLabel ?? 'お子さま'}をもう1人追加しますか？`}
+              text={`${currentSection.repeatable?.itemLabel ?? '項目'}をもう1件追加しますか？`}
             />
             <div className="flex gap-2 justify-end">
               <button onClick={handleRepeatYes} className="btn-primary text-sm py-2 px-5">はい</button>
@@ -209,7 +237,6 @@ export default function PlanningChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* 入力エリア */}
       {!askRepeat && (
         <div
           className="px-4 py-4 border-t space-y-2"
