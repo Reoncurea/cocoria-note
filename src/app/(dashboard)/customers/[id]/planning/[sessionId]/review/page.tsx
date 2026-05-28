@@ -97,14 +97,14 @@ export default function ReviewPage() {
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
           style={{ borderColor: 'var(--color-primary)' }} />
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          {generating ? 'プラン生成中...' : '読み込み中...'}
+          {generating ? 'プラン準備中...' : '読み込み中...'}
         </p>
       </div>
     )
   }
 
   return (
-    <div className="px-4 pt-6 space-y-4 pb-48">
+    <div className="px-4 pt-6 space-y-4 pb-8">
       <div className="flex items-center gap-3">
         <button onClick={() => router.push(`/customers/${id}`)} className="p-2 -ml-2">
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
@@ -113,16 +113,24 @@ export default function ReviewPage() {
           </svg>
         </button>
         <h1 className="page-title flex-1">プラン提案</h1>
-        <button
-          onClick={() => router.push(`/customers/${id}/planning/${sessionId}/edit`)}
-          className="btn-secondary text-sm px-3 py-2 flex-shrink-0"
-        >
-          回答を修正
-        </button>
+        <div className="flex flex-shrink-0 gap-2">
+          <button
+            onClick={() => router.push(`/customers/${id}/planning/${sessionId}/edit`)}
+            className="btn-secondary text-sm px-3 py-2"
+          >
+            回答を修正
+          </button>
+          <button
+            onClick={() => router.push(`/customers/${id}/planning/${sessionId}/export`)}
+            className="btn-primary text-sm px-3 py-2"
+          >
+            PDF で出力
+          </button>
+        </div>
       </div>
 
       <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-        回答内容をもとに提案を生成しました。編集・除外してから PDF で出力できます。
+        回答内容をもとに提案を準備しました。編集・除外してから PDF で出力できます。
       </p>
 
       {Object.keys(groups).length === 0 ? (
@@ -176,17 +184,6 @@ export default function ReviewPage() {
           ＋ カスタム提案を追加
         </button>
       )}
-
-      {/* 固定フッター */}
-      <div className="fixed bottom-20 left-0 right-0 px-4 py-3 border-t"
-        style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)', zIndex: 10 }}>
-        <button
-          onClick={() => router.push(`/customers/${id}/planning/${sessionId}/export`)}
-          className="btn-primary w-full py-3"
-        >
-          PDF で出力
-        </button>
-      </div>
     </div>
   )
 }
