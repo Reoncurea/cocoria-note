@@ -58,7 +58,7 @@ export default function DashboardPage() {
           .from('billing')
           .select('customer_id, customers(name_kanji)')
           .eq('user_id', user?.id ?? '')
-          .eq('invoiced', true)
+          .eq('contracted', true)
           .eq('paid', false),
       ])
 
