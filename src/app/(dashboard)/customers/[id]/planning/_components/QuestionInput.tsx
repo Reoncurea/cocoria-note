@@ -49,6 +49,11 @@ export default function QuestionInput({ question, onSubmit }: Props) {
     outline: 'none',
   } as React.CSSProperties
 
+  const japaneseInputStyle = {
+    ...inputStyle,
+    imeMode: 'active',
+  } as React.CSSProperties
+
   // type別のinputMode（モバイルキーボード最適化）
   const inputModeMap: Record<string, React.HTMLAttributes<HTMLInputElement>['inputMode']> = {
     tel: 'tel',
@@ -105,7 +110,7 @@ export default function QuestionInput({ question, onSubmit }: Props) {
         </div>
         {question.allow_other && (
           <input
-            style={inputStyle}
+            style={japaneseInputStyle}
             placeholder="その他（自由記入）"
             value={otherText}
             onChange={e => setOtherText(e.target.value)}
@@ -128,7 +133,7 @@ export default function QuestionInput({ question, onSubmit }: Props) {
     return (
       <div className="flex flex-col gap-2">
         <textarea
-          style={{ ...inputStyle, minHeight: 80, resize: 'none' }}
+          style={{ ...japaneseInputStyle, minHeight: 80, resize: 'none' }}
           placeholder={question.placeholder ?? ''}
           value={value}
           onChange={e => setValue(e.target.value)}
@@ -152,7 +157,7 @@ export default function QuestionInput({ question, onSubmit }: Props) {
     <div className="flex flex-col gap-2">
       <div className="flex gap-2 items-center">
         <input
-          style={inputStyle}
+          style={question.type === 'text' ? japaneseInputStyle : inputStyle}
           type={question.type}
           placeholder={question.placeholder ?? ''}
           value={value}
