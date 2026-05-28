@@ -2,19 +2,22 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, useCallback } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { CustomerActivity } from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { ACTIVITY_TYPES } from '@/lib/constants/activities'
+
+const TYPE_COLOR: Record<string, { bg: string; color: string; label: string }> = {
+  material:  { bg: '#dbeafe', color: '#1e40af', label: '資料提供' },
+  municipal: { bg: '#dcfce7', color: '#166534', label: '自治体連携' },
+  other:     { bg: '#f3f4f6', color: '#374151', label: 'その他' },
+}
 
 export default function ActivitiesPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const supabase = createClient()
   const [activities, setActivities] = useState<CustomerActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +33,7 @@ export default function ActivitiesPage() {
     setActivities(data ?? [])
     setLoading(false)
     setRefreshing(false)
-  }, [id])
+  }, [id, supabase])
 
   useEffect(() => {
     let ignore = false
@@ -53,34 +56,33 @@ export default function ActivitiesPage() {
   }, [id, supabase])
 
   if (loading) {
-    return <LoadingSpinner />
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--color-primary)' }} />
+      </div>
+    )
   }
 
   return (
-    <div className="px-4 pt-6 space-y-4 pb-24">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.push(`/customers/${id}`)} className="p-2 -ml-2">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text)' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <h1 className="page-title flex-1">対応記録</h1>
-
-        <button
-          onClick={() => fetchActivities(true)}
-          disabled={refreshing}
-          className="p-2 rounded-full disabled:opacity-40"
-          title="更新"
-        >
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-            style={{ color: 'var(--color-text-muted)' }}
-            className={refreshing ? 'animate-spin' : ''}>
-            <path d="M3 12a9 9 0 1 1 2.636 6.364" />
-            <polyline points="3 18 3 12 9 12" />
-          </svg>
-        </button>
-
+    <div className="px-4 pt-5 space-y-4 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="section-label mb-0">対応記録</p>
+          <button
+            onClick={() => fetchActivities(true)}
+            disabled={refreshing}
+            className="p-1 rounded-full disabled:opacity-40"
+            title="更新"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+              style={{ color: 'var(--color-text-muted)' }}
+              className={refreshing ? 'animate-spin' : ''}>
+              <path d="M3 12a9 9 0 1 1 2.636 6.364" />
+              <polyline points="3 18 3 12 9 12" />
+            </svg>
+          </button>
+        </div>
         <Link href={`/customers/${id}/activities/new`} className="btn-primary text-sm px-3 py-2">
           ＋ 記録
         </Link>
@@ -96,7 +98,7 @@ export default function ActivitiesPage() {
       ) : (
         <div className="space-y-2">
           {activities.map(a => {
-            const c = ACTIVITY_TYPES[a.type as keyof typeof ACTIVITY_TYPES] ?? ACTIVITY_TYPES.other
+            const c = TYPE_COLOR[a.type] ?? TYPE_COLOR.other
             return (
               <Link key={a.id} href={`/customers/${id}/activities/${a.id}`}>
                 <div className="card flex items-center justify-between gap-3 active:opacity-70 py-3">

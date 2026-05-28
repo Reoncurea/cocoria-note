@@ -85,7 +85,6 @@ export default function PlanningChatPage() {
     const newAnswers: AllAnswers = { ...answers, [currentSection.id]: newSectionAnswers }
     setAnswers(newAnswers)
 
-    // チャットログに回答を追加
     setChatLog(prev => [
       ...prev,
       { role: 'user', text: answerToText(value), sectionIdx, questionIdx },
@@ -127,7 +126,6 @@ export default function PlanningChatPage() {
     }
 
     if (next >= sections.length) {
-      // 全完了 → レビューページへ
       router.push(`/customers/${id}/planning/${sessionId}/review`)
       return
     }
@@ -152,7 +150,6 @@ export default function PlanningChatPage() {
     setChatLog(prev => [...prev, ...msgs])
   }
 
-  // 修正ボタンから特定の質問に戻る
   function startEdit(si: number, qi: number) {
     setSectionIdx(si)
     setQuestionIdx(qi)
@@ -193,7 +190,6 @@ export default function PlanningChatPage() {
           />
         ))}
 
-        {/* repeatable セクションの「もう1人追加？」 */}
         {askRepeat && (
           <div className="space-y-2">
             <ChatMessage
@@ -201,18 +197,8 @@ export default function PlanningChatPage() {
               text={`${currentSection.repeatable?.itemLabel ?? 'お子さま'}をもう1人追加しますか？`}
             />
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={handleRepeatYes}
-                className="btn-primary text-sm py-2 px-5"
-              >
-                はい
-              </button>
-              <button
-                onClick={() => goToNextSection()}
-                className="btn-secondary text-sm py-2 px-5"
-              >
-                いいえ
-              </button>
+              <button onClick={handleRepeatYes} className="btn-primary text-sm py-2 px-5">はい</button>
+              <button onClick={() => goToNextSection()} className="btn-secondary text-sm py-2 px-5">いいえ</button>
             </div>
           </div>
         )}

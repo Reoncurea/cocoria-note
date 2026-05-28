@@ -8,8 +8,12 @@ import type { Customer } from '@/types/database'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { CUSTOMER_STATUS_BADGE } from '@/lib/constants/statuses'
+
+const STATUS_LABELS: Record<string, string> = {
+  '活動中': 'active',
+  '契約済み': 'contracted',
+  '終了': 'ended',
+}
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -56,7 +60,8 @@ export default function CustomersPage() {
         </svg>
         <input
           type="search"
-          className="input pl-9"
+          className="input"
+          style={{ paddingLeft: '2.25rem' }}
           placeholder="名前で検索..."
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -65,7 +70,10 @@ export default function CustomersPage() {
 
       {/* リスト */}
       {loading ? (
-        <LoadingSpinner />
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: 'var(--color-primary)' }} />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16" style={{ color: 'var(--color-text-muted)' }}>
           {query ? '検索結果がありません' : (
@@ -92,7 +100,7 @@ export default function CustomersPage() {
                     <span className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>
                       {c.name_kanji}
                     </span>
-                    <span className={`badge badge-${CUSTOMER_STATUS_BADGE[c.status] ?? 'active'}`}>
+                    <span className={`badge badge-${STATUS_LABELS[c.status] ?? 'active'}`}>
                       {c.status}
                     </span>
                   </div>

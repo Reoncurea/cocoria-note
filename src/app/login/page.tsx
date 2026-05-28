@@ -32,7 +32,14 @@ export default function LoginPage() {
           setError(error.message)
         }
       } else {
-        setMessage('登録が完了しました。そのままログインできます。')
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInError) {
+          setMessage('登録が完了しました。ログインしてください。')
+          setIsSignUp(false)
+        } else {
+          router.push('/dashboard')
+          router.refresh()
+        }
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
