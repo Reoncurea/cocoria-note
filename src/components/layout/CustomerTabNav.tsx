@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 const TABS = [
   { label: '基本情報', suffix: '' },
   { label: 'プランニング', suffix: '/planning' },
+  { label: '請求', suffix: '/billing' },
   { label: '対応記録', suffix: '/activities' },
   { label: '訪問履歴', suffix: '/visits' },
 ]
@@ -15,7 +16,6 @@ export default function CustomerTabNav({ customerId }: { customerId: string }) {
   const base = `/customers/${customerId}`
   const suffix = pathname.slice(base.length)
 
-  // タブ一覧ページ以外（個別詳細・編集ページなど）は非表示
   const isTabPage = TABS.some(t => t.suffix === suffix)
   if (!isTabPage) return null
 
