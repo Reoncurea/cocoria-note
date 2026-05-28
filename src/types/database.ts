@@ -68,6 +68,19 @@ export interface BillingRow {
   created_at: string; updated_at: string
 }
 
+export interface CustomerContractRow {
+  id: string; customer_id: string; user_id: string; title: string
+  contracted_date: string; period_start: string | null; period_end: string | null
+  notes: string | null; created_at: string; updated_at: string
+}
+
+export interface VisitBillingRow {
+  id: string; visit_id: string; customer_id: string; user_id: string
+  contract_id: string | null; invoice_label: string | null; amount: number | null
+  invoiced: boolean; invoiced_date: string | null; paid: boolean; paid_date: string | null
+  notes: string | null; created_at: string; updated_at: string
+}
+
 export interface InquiryRow {
   id: string; name_kanji: string; name_kana: string; phone: string; email: string
   address: string | null; due_date: string | null; baby_count: number | null
@@ -140,6 +153,18 @@ export interface Database {
         Update: Partial<Omit<BillingRow, 'id' | 'created_at' | 'updated_at'>>
         Relationships: []
       }
+      customer_contracts: {
+        Row: CustomerContractRow
+        Insert: Omit<CustomerContractRow, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string }
+        Update: Partial<Omit<CustomerContractRow, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      visit_billing: {
+        Row: VisitBillingRow
+        Insert: Omit<VisitBillingRow, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string }
+        Update: Partial<Omit<VisitBillingRow, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
       inquiries: {
         Row: InquiryRow
         Insert: Omit<InquiryRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
@@ -172,6 +197,8 @@ export type ServiceRecord = ServiceRecordRow
 export type BreathCheck = BreathCheckRow
 export type BreathCheckCell = BreathCheckCellRow
 export type Billing = BillingRow
+export type CustomerContract = CustomerContractRow
+export type VisitBilling = VisitBillingRow
 export type Inquiry = InquiryRow
 export type CustomerActivity = CustomerActivityRow
 

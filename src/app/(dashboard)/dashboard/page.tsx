@@ -12,7 +12,7 @@ import { CocoriaLogo } from '@/components/CocoriaLogo'
 interface DashboardData {
   todayVisits: { id: string; customer_id: string; start_time: string | null; customers: { name_kanji: string } | null }[]
   unsentReports: { id: string; customer_id: string; visit_date: string; customers: { name_kanji: string } | null }[]
-  unpaidBilling: { customer_id: string; customers: { name_kanji: string } | null }[]
+  unpaidBilling: { id?: string; customer_id: string; customers: { name_kanji: string } | null; invoice_label?: string | null; visits?: { visit_date: string } | null }[]
   userEmail: string
 }
 
@@ -40,7 +40,7 @@ export default function DashboardPage() {
       const today = new Date().toISOString().split('T')[0]
       const { data: { user } } = await supabase.auth.getUser()
 
-      const [visitRes, unsentRes, unpaidRes] = await Promise.all([
+      const [visitRes, unsentRes, unpaidRes, visitUnpaidRes] = await Promise.all([
         supabase
           .from('visits')
           .select('id, customer_id, start_time, customers(name_kanji)')
@@ -60,6 +60,12 @@ export default function DashboardPage() {
           .eq('user_id', user?.id ?? '')
           .eq('contracted', true)
           .eq('paid', false),
+        supabase
+          .from('visit_billing')
+          .select('id, customer_id, invoice_label, customers(name_kanji), visits(visit_date)')
+          .eq('user_id', user?.id ?? '')
+          .eq('invoiced', true)
+          .eq('paid', false),
       ])
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,7 +75,18 @@ export default function DashboardPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const normUnsent = (unsentRes.data ?? []).map((v: any) => ({ ...v, customers: normalizeCustomer(v.customers) }))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const normUnpaid = (unpaidRes.data ?? []).map((v: any) => ({ ...v, customers: normalizeCustomer(v.customers) }))
+      const normLegacyUnpaid = (unpaidRes.data ?? []).map((v: any) => ({ ...v, customers: normalizeCustomer(v.customers) }))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const normVisitUnpaid = (visitUnpaidRes.data ?? []).map((v: any) => ({
+        ...v,
+        customers: normalizeCustomer(v.customers),
+        visits: Array.isArray(v.visits) ? (v.visits[0] ?? null) : (v.visits ?? null),
+      }))
+      const visitBillingCustomerIds = new Set(normVisitUnpaid.map(v => v.customer_id))
+      const normUnpaid = [
+        ...normVisitUnpaid,
+        ...normLegacyUnpaid.filter(v => !visitBillingCustomerIds.has(v.customer_id)),
+      ]
 
       setData({
         todayVisits: normVisits as DashboardData['todayVisits'],
@@ -148,7 +165,7 @@ export default function DashboardPage() {
       {(data?.unpaidBilling.length ?? 0) > 0 && (
         <Section title="💰 未入金の顧客">
           {data?.unpaidBilling.map(b => (
-            <Link key={b.customer_id} href={`/customers/${b.customer_id}`}>
+            <Link key={b.id ?? b.customer_id} href={`/customers/${b.customer_id}`}>
               <ListItem name={b.customers?.name_kanji ?? '不明'} badge="未入金" />
             </Link>
           ))}
