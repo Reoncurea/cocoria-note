@@ -42,6 +42,11 @@ function AnswerField({
     outline: 'none',
   } as React.CSSProperties
 
+  const japaneseInputStyle = {
+    ...inputStyle,
+    imeMode: 'active',
+  } as React.CSSProperties
+
   if (question.type === 'select') {
     return (
       <div className="flex flex-wrap gap-2">
@@ -108,7 +113,7 @@ function AnswerField({
         </div>
         {question.allow_other && (
           <input
-            style={inputStyle}
+            style={japaneseInputStyle}
             placeholder="その他（カンマ区切り）"
             value={otherText}
             onChange={e => {
@@ -124,7 +129,7 @@ function AnswerField({
   if (question.type === 'textarea') {
     return (
       <textarea
-        style={{ ...inputStyle, minHeight: 72, resize: 'none' }}
+        style={{ ...japaneseInputStyle, minHeight: 72, resize: 'none' }}
         placeholder={question.placeholder ?? ''}
         value={strVal}
         onChange={e => onChange(e.target.value || null)}
@@ -136,7 +141,7 @@ function AnswerField({
   return (
     <div className="flex items-center gap-2">
       <input
-        style={inputStyle}
+        style={question.type === 'text' ? japaneseInputStyle : inputStyle}
         type={question.type}
         placeholder={question.placeholder ?? ''}
         value={strVal}
@@ -219,7 +224,7 @@ export default function PlanningEditPage() {
       </div>
 
       <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-        各セクションの回答を編集して「保存して提案を再生成」を押してください。
+        各セクションの回答を編集して「保存して提案を再準備」を押してください。
       </p>
 
       {visibleSections.map(section => (
@@ -252,7 +257,7 @@ export default function PlanningEditPage() {
           disabled={saving}
           className="btn-primary w-full py-3 disabled:opacity-40"
         >
-          {saving ? '保存中...' : '保存して提案を再生成'}
+          {saving ? '保存中...' : '保存して提案を再準備'}
         </button>
       </div>
     </div>
