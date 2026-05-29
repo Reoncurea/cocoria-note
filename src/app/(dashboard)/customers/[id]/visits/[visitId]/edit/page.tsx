@@ -38,6 +38,7 @@ export default function VisitEditPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [savedMessage, setSavedMessage] = useState<string | null>(null)
   const [quickTime, setQuickTime] = useState('')
   const [quickDetail, setQuickDetail] = useState('')
 
@@ -99,9 +100,10 @@ export default function VisitEditPage() {
     load()
   }, [visitId])
 
-  async function onSubmit(values: FormValues) {
+  async function saveVisit(values: FormValues, returnToBreathCheck: boolean) {
     setSaving(true)
     setError(null)
+    setSavedMessage(null)
 
     const { error: err } = await supabase
       .from('visits')
@@ -126,7 +128,13 @@ export default function VisitEditPage() {
       return
     }
 
-    await supabase.from('service_records').delete().eq('visit_id', visitId)
+    const { error: deleteErr } = await supabase.from('service_records').delete().eq('visit_id', visitId)
+    if (deleteErr) {
+      setError('作業記録の保存に失敗しました: ' + deleteErr.message)
+      setSaving(false)
+      return
+    }
+
     const records = values.service_records.filter(r => r.time_label || r.content)
     if (records.length > 0) {
       const { error: recordErr } = await supabase.from('service_records').insert(
@@ -145,7 +153,18 @@ export default function VisitEditPage() {
       }
     }
 
-    router.push(`/customers/${id}/visits/${visitId}`)
+    setSaving(false)
+
+    if (returnToBreathCheck) {
+      router.push(`/customers/${id}/visits/${visitId}`)
+      return
+    }
+
+    setSavedMessage('保存しました')
+  }
+
+  async function onSubmit(values: FormValues) {
+    await saveVisit(values, false)
   }
 
   if (loading) {
@@ -166,7 +185,23 @@ export default function VisitEditPage() {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <h1 className="page-title">対応履歴を編集</h1>
+        <h1 className="page-title flex-1">対応履歴を入力</h1>
+        <button
+          type="button"
+          onClick={handleSubmit(values => saveVisit(values, true))}
+          disabled={saving}
+          className="btn-secondary text-sm px-3 py-2 flex-shrink-0 disabled:opacity-60"
+        >
+          呼吸チェックに戻る
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit(values => saveVisit(values, false))}
+          disabled={saving}
+          className="btn-primary text-sm px-3 py-2 flex-shrink-0 disabled:opacity-60"
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -249,7 +284,9 @@ export default function VisitEditPage() {
                   style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                   <input
                     className="input text-sm"
-                    type="time"
+                    type="text"
+                    placeholder="10:00"
+                    inputMode="text"
                     {...register(`service_records.${index}.time_label`)}
                   />
                   <div className="space-y-2">
@@ -354,9 +391,14 @@ export default function VisitEditPage() {
             {error}
           </div>
         )}
+        {savedMessage && (
+          <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#ecfdf5', color: '#047857' }}>
+            {savedMessage}
+          </div>
+        )}
 
         <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-60">
-          {saving ? '保存中...' : '保存する'}
+          {saving ? '保存中...' : '保存'}
         </button>
 
         <div className="bottom-nav-spacer" />

@@ -138,7 +138,7 @@ export default function VisitDetailPage() {
           )}
         </div>
         <Link href={`/customers/${id}/visits/${visitId}/edit`} className="btn-secondary text-sm px-3 py-2">
-          編集
+          対応履歴の入力
         </Link>
         <Link href={`/customers/${id}/visits/${visitId}/report`} className="btn-primary text-sm px-3 py-2">
           報告書
