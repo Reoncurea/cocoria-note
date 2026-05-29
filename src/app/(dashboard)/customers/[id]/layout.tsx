@@ -56,7 +56,7 @@ export default async function CustomerLayout({ children, params }: Props) {
             )}
           </div>
           <Link href={`/customers/${id}/edit`} className="btn-secondary text-xs px-3 py-1.5 flex-shrink-0">
-            編集
+            カルテを編集
           </Link>
         </div>
 

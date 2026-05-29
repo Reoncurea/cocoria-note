@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation'
 
 const TABS = [
   { label: '基本情報', suffix: '' },
-  { label: 'プランニング', suffix: '/planning' },
-  { label: '請求', suffix: '/billing' },
-  { label: '対応記録', suffix: '/activities' },
   { label: '訪問履歴', suffix: '/visits' },
+  { label: '対応記録', suffix: '/activities' },
+  { label: '請求', suffix: '/billing' },
+  { label: 'プランニング', suffix: '/planning' },
 ]
 
 export default function CustomerTabNav({ customerId }: { customerId: string }) {
