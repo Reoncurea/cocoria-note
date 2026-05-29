@@ -41,6 +41,24 @@ function hasAnswer(value: AnswerValue | undefined): boolean {
   return true
 }
 
+function hasSectionAnswers(section: Section, answers: AllAnswers): boolean {
+  return section.questions.some(q => hasAnswer(answers[section.id]?.[q.id]))
+}
+
+function sectionSummary(section: Section, answers: AllAnswers): string {
+  const lines = section.questions
+    .map(q => {
+      const value = answers[section.id]?.[q.id]
+      if (!hasAnswer(value)) return null
+      return `${q.label}: ${answerToText(value)}`
+    })
+    .filter(Boolean)
+    .slice(0, 8)
+
+  if (lines.length === 0) return ''
+  return `前回の入力内容です。変更がなければ、このセクションはスキップできます。\n${lines.join('\n')}`
+}
+
 function isBasicComplete(answers: AllAnswers): boolean {
   const basic = sections.find(s => s.id === 'basic')
   if (!basic) return false
@@ -57,9 +75,11 @@ function firstVisibleSectionIndex(answers: AllAnswers): number {
   return Math.min(index, sections.length - 1)
 }
 
-function buildChatLog(section: Section): ChatItem[] {
+function buildChatLog(section: Section, answers: AllAnswers): ChatItem[] {
   const messages: ChatItem[] = []
   if (section.intro) messages.push({ role: 'bot', text: section.intro })
+  const summary = sectionSummary(section, answers)
+  if (summary) messages.push({ role: 'bot', text: summary })
   messages.push({ role: 'bot', text: section.questions[0].label })
   return messages
 }
@@ -100,7 +120,7 @@ export default function PlanningChatPage() {
       setAnswers(map)
       setSectionIdx(startIndex)
       setQuestionIdx(0)
-      setChatLog(buildChatLog(startSection))
+      setChatLog(buildChatLog(startSection, map))
       setLoading(false)
     }
     load()
@@ -171,7 +191,7 @@ export default function PlanningChatPage() {
     const nextSection = sections[next]
     setSectionIdx(next)
     setQuestionIdx(0)
-    setChatLog(prev => [...prev, ...buildChatLog(nextSection)])
+    setChatLog(prev => [...prev, ...buildChatLog(nextSection, currentAnswers)])
   }
 
   function handleRepeatYes() {
@@ -179,7 +199,7 @@ export default function PlanningChatPage() {
     setRepeatCount(c => c + 1)
     setQuestionIdx(0)
     if (currentSection) {
-      setChatLog(prev => [...prev, ...buildChatLog(currentSection)])
+      setChatLog(prev => [...prev, ...buildChatLog(currentSection, answers)])
     }
   }
 
@@ -198,6 +218,9 @@ export default function PlanningChatPage() {
       </div>
     )
   }
+
+  const canKeepPrevious = questionIdx === 0 && hasSectionAnswers(currentSection, answers)
+  const canSkipSection = questionIdx === 0 && (currentSection.skippable || canKeepPrevious)
 
   return (
     <div className="flex flex-col h-svh">
@@ -245,13 +268,13 @@ export default function PlanningChatPage() {
           className="px-4 py-4 border-t space-y-2"
           style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)' }}
         >
-          {currentSection.skippable && questionIdx === 0 && (
+          {canSkipSection && (
             <button
               onClick={() => goToNextSection()}
               className="w-full text-sm py-2"
               style={{ color: 'var(--color-text-muted)' }}
             >
-              このセクションをスキップ
+              {canKeepPrevious ? '前回内容のままスキップ' : 'このセクションをスキップ'}
             </button>
           )}
           <QuestionInput
