@@ -95,7 +95,7 @@ export default function ReportPage() {
   if (!visit || !customer) return null
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
+    <div className="min-h-screen report-print-root" style={{ background: 'var(--color-background)' }}>
       {/* 操作バー（印刷時は非表示） */}
       <div className="print:hidden px-4 py-4 flex items-center gap-3 sticky top-0 z-10"
         style={{ background: 'white', borderBottom: '1px solid var(--color-border)' }}>
@@ -129,10 +129,10 @@ export default function ReportPage() {
       )}
 
       {/* 報告書本体（印刷対象） */}
-      <div className="mx-4 my-4 space-y-4 print:mx-0 print:my-0">
+      <div className="mx-4 my-4 space-y-4 print:mx-0 print:my-0 report-print-body">
 
         {/* === 1ページ目：報告書 === */}
-        <div className="card print:shadow-none print:border-none">
+        <div className="card print:shadow-none print:border-none report-print-page">
           {/* タイトル */}
           <div className="text-center mb-6 print:mb-8">
             <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>
@@ -196,7 +196,7 @@ export default function ReportPage() {
           {photos.length > 0 && (
             <div className="mb-5">
               <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--color-text)' }}>写真共有</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 report-photo-grid">
                 {photos.map(photo => (
                   <div key={photo.id} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                     {photo.signedUrl && (
@@ -236,7 +236,7 @@ export default function ReportPage() {
 
         {/* === 2ページ目：呼吸チェック表 === */}
         {breathCheck && hours.length > 0 && (
-          <div className="card print:shadow-none print:border-none" style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
+          <div className="card print:shadow-none print:border-none report-print-page report-print-page-break" style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
             <div className="text-center mb-4">
               <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>呼吸チェック表</h2>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>

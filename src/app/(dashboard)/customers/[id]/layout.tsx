@@ -28,7 +28,7 @@ export default async function CustomerLayout({ children, params }: Props) {
     <div>
       {/* 顧客名ヘッダー（常に表示） */}
       <div
-        className="sticky top-0 z-30 bg-white"
+        className="sticky top-0 z-30 bg-white print:hidden"
         style={{ borderBottom: '1px solid var(--color-border)', boxShadow: '0 1px 4px rgba(249,168,201,0.1)' }}
       >
         <div className="flex items-center gap-3 px-4 py-3">
