@@ -23,8 +23,8 @@ export default async function DashboardLayout({
       <Sidebar />
 
       {/* メインコンテンツ */}
-      <div className="md:ml-52">
-        <main className="pb-20 md:pb-8">
+      <div className="md:ml-52 print:ml-0">
+        <main className="pb-20 md:pb-8 print:pb-0">
           {children}
         </main>
       </div>
