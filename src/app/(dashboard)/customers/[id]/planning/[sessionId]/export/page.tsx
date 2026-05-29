@@ -14,7 +14,18 @@ interface Answer {
   answers: Record<string, unknown>
 }
 
+interface Suggestion {
+  id: string
+  priority: 'high' | 'medium' | 'low'
+  category: string
+  title: string
+  body: string
+  is_dismissed: boolean
+  display_order: number
+}
+
 const sections = questionsConfig.sections as Section[]
+const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
 
 // セクション内の主要回答（最大3項目）を取得
 function summarizeSection(section: Section, answers: Record<string, unknown>): string[] {
@@ -36,6 +47,7 @@ export default function ExportPage() {
 
   const [customer, setCustomer] = useState<CustomerRow | null>(null)
   const [answerRows, setAnswerRows] = useState<Answer[]>([])
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -46,6 +58,10 @@ export default function ExportPage() {
       ])
       setCustomer(cRes.data)
       setAnswerRows(sRes.answers ?? [])
+      setSuggestions(((sRes.suggestions ?? []) as Suggestion[])
+        .filter(s => !s.is_dismissed)
+        .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.display_order - b.display_order)
+      )
 
       const name = cRes.data?.name_kanji ?? ''
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -112,6 +128,29 @@ export default function ExportPage() {
           </table>
         </section>
 
+        {/* プラン提案 */}
+        {suggestions.length > 0 && (
+          <section style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
+            <h2 className="section-label mb-3">プラン提案</h2>
+            <div className="space-y-3">
+              {suggestions.map(s => (
+                <div key={s.id} className="p-3 rounded-xl"
+                  style={{ background: '#fff7fb', border: '1px solid var(--color-border)' }}>
+                  <p className="text-xs font-bold mb-1" style={{ color: 'var(--color-primary-dark)' }}>
+                    {priorityLabel(s.priority)}・{s.category}
+                  </p>
+                  <p className="text-sm font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {s.title}
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>
+                    {s.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* 回答サマリー */}
         {answerRows.length > 0 && (
           <section>
@@ -149,6 +188,12 @@ export default function ExportPage() {
       </div>
     </div>
   )
+}
+
+function priorityLabel(priority: Suggestion['priority']): string {
+  if (priority === 'high') return '重要'
+  if (priority === 'medium') return '推奨'
+  return '参考'
 }
 
 function PrintRow({ label, value }: { label: string; value: string }) {
