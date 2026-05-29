@@ -5,11 +5,12 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Visit, Customer, ServiceRecord, BreathCheck, BreathCheckCell } from '@/types/database'
+import type { Visit, Customer, ServiceRecord, BreathCheck, BreathCheckCell, VisitPhoto } from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
 
 export default function ReportPage() {
   const { id, visitId } = useParams<{ id: string; visitId: string }>()
@@ -21,6 +22,7 @@ export default function ReportPage() {
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([])
   const [breathCheck, setBreathCheck] = useState<BreathCheck | null>(null)
   const [breathCells, setBreathCells] = useState<BreathCheckCell[]>([])
+  const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -28,17 +30,23 @@ export default function ReportPage() {
 
   useEffect(() => {
     async function load() {
-      const [vRes, cRes, srRes, bcRes, vtRes] = await Promise.all([
+      const [vRes, cRes, srRes, bcRes, vtRes, photoRes] = await Promise.all([
         supabase.from('visits').select('*').eq('id', visitId).single(),
         supabase.from('customers').select('*').eq('id', id).single(),
         supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
         supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
         supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
+        supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
       ])
       setVisit(vRes.data)
       setCustomer(cRes.data)
       setServiceRecords(srRes.data ?? [])
       setBreathCheck(bcRes.data)
+      const photosWithUrls = await Promise.all(((photoRes.data ?? []) as VisitPhoto[]).map(async photo => {
+        const { data } = await supabase.storage.from('visit-photos').createSignedUrl(photo.file_path, 60 * 60)
+        return { ...photo, signedUrl: data?.signedUrl }
+      }))
+      setPhotos(photosWithUrls)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setTags((vtRes.data ?? []).map((vt: any) => {
         const st = vt.support_tags
@@ -181,6 +189,31 @@ export default function ReportPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* 写真共有 */}
+          {photos.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--color-text)' }}>写真共有</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {photos.map(photo => (
+                  <div key={photo.id} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                    {photo.signedUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photo.signedUrl}
+                        alt={photo.caption ?? '訪問写真'}
+                        className="w-full rounded-lg object-cover mb-2"
+                        style={{ aspectRatio: '4 / 3' }}
+                      />
+                    )}
+                    {photo.caption && (
+                      <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{photo.caption}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

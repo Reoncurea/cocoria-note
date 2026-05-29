@@ -5,12 +5,13 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Visit, ServiceRecord, BreathCheck, BreathCheckCell } from '@/types/database'
+import type { Visit, ServiceRecord, BreathCheck, BreathCheckCell, VisitPhoto } from '@/types/database'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
 
 export default function VisitDetailPage() {
   const { id, visitId } = useParams<{ id: string; visitId: string }>()
@@ -21,6 +22,7 @@ export default function VisitDetailPage() {
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([])
   const [breathCheck, setBreathCheck] = useState<BreathCheck | null>(null)
   const [breathCells, setBreathCells] = useState<BreathCheckCell[]>([])
+  const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [addingHour, setAddingHour] = useState('')
@@ -29,17 +31,23 @@ export default function VisitDetailPage() {
     let ignore = false
 
     async function load() {
-      const [vRes, srRes, bcRes, vtRes] = await Promise.all([
+      const [vRes, srRes, bcRes, vtRes, photoRes] = await Promise.all([
         supabase.from('visits').select('*').eq('id', visitId).single(),
         supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
         supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
         supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
+        supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
       ])
 
       if (ignore) return
       setVisit(vRes.data)
       setServiceRecords(srRes.data ?? [])
       setBreathCheck(bcRes.data)
+      const photosWithUrls = await Promise.all(((photoRes.data ?? []) as VisitPhoto[]).map(async photo => {
+        const { data } = await supabase.storage.from('visit-photos').createSignedUrl(photo.file_path, 60 * 60)
+        return { ...photo, signedUrl: data?.signedUrl }
+      }))
+      if (!ignore) setPhotos(photosWithUrls)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setTags((vtRes.data ?? []).map((vt: any) => {
         const st = vt.support_tags
@@ -248,6 +256,32 @@ export default function VisitDetailPage() {
         </div>
       )}
 
+      {/* 写真共有 */}
+      {photos.length > 0 && (
+        <div className="card space-y-3">
+          <p className="section-label">写真共有</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {photos.map(photo => (
+              <div key={photo.id} className="space-y-2 rounded-xl p-3"
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                {photo.signedUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo.signedUrl}
+                    alt={photo.caption ?? '訪問写真'}
+                    className="w-full rounded-lg object-cover"
+                    style={{ aspectRatio: '4 / 3' }}
+                  />
+                )}
+                {photo.caption && (
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{photo.caption}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* メッセージ */}
       {(visit.staff_message || visit.customer_message) && (
         <div className="card space-y-3">
@@ -268,7 +302,7 @@ export default function VisitDetailPage() {
       )}
 
       {/* 非公開メモ */}
-      {(visit.customer_notes || visit.next_visit_notes) && (
+      {(visit.customer_notes || visit.next_visit_notes || visit.drive_link) && (
         <div className="card space-y-3">
           <div className="flex items-center gap-2">
             <p className="section-label mb-0">非公開メモ</p>
@@ -284,6 +318,20 @@ export default function VisitDetailPage() {
             <div>
               <p className="form-label">次回の予定・申し引き事項</p>
               <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{visit.next_visit_notes}</p>
+            </div>
+          )}
+          {visit.drive_link && (
+            <div>
+              <p className="form-label">Googleドライブ等の共有リンク</p>
+              <a
+                href={visit.drive_link}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm underline break-all"
+                style={{ color: 'var(--color-primary-dark)' }}
+              >
+                {visit.drive_link}
+              </a>
             </div>
           )}
         </div>

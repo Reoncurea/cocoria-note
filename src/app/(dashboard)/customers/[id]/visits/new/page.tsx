@@ -22,6 +22,7 @@ interface FormValues {
   customer_message: string
   customer_notes: string
   next_visit_notes: string
+  drive_link: string
   service_records: ServiceRow[]
 }
 
@@ -110,6 +111,7 @@ export default function VisitNewPage() {
         customer_message: values.customer_message || null,
         customer_notes: values.customer_notes || null,
         next_visit_notes: values.next_visit_notes || null,
+        drive_link: values.drive_link || null,
         report_sent: false,
       })
       .select()
@@ -381,6 +383,10 @@ export default function VisitNewPage() {
             <div>
               <label className="form-label">次回の予定・申し引き事項</label>
               <textarea className="input" rows={2} placeholder="次回持参するもの、注意点など..." {...register('next_visit_notes')} />
+            </div>
+            <div>
+              <label className="form-label">Googleドライブ等の共有リンク</label>
+              <input className="input" type="url" placeholder="https://..." {...register('drive_link')} />
             </div>
           </div>
 

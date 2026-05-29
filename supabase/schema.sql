@@ -100,6 +100,7 @@ create table visits (
   customer_message  text,         -- ご依頼主からのメッセージ（報告書に含める）
   next_visit_notes  text,         -- 次回の予定・申し引き事項（非公開）
   staff_message     text,         -- 担当者からのメッセージ（報告書に含める）
+  drive_link        text,         -- Googleドライブ等の共有リンク（非公開メモ）
 
   -- 報告書状態
   report_sent       boolean default false,
@@ -128,6 +129,16 @@ create table service_records (
   time_label  text not null,    -- 例: "10:00"
   content     text,             -- 内容
   detail      text,             -- 詳細
+  sort_order  integer default 0,
+  created_at  timestamptz default now()
+);
+
+create table visit_photos (
+  id          uuid primary key default uuid_generate_v4(),
+  visit_id    uuid references visits(id) on delete cascade not null,
+  user_id     uuid references auth.users(id) on delete cascade not null,
+  file_path   text not null,
+  caption     text,
   sort_order  integer default 0,
   created_at  timestamptz default now()
 );
@@ -243,6 +254,7 @@ alter table support_tags     enable row level security;
 alter table visits           enable row level security;
 alter table visit_tags       enable row level security;
 alter table service_records  enable row level security;
+alter table visit_photos     enable row level security;
 alter table breath_checks    enable row level security;
 alter table breath_check_cells enable row level security;
 alter table billing          enable row level security;
@@ -284,6 +296,16 @@ create policy "自分の対応履歴のタグのみ" on visit_tags
 create policy "自分の作業記録のみ" on service_records
   for all using (
     exists (select 1 from visits where visits.id = service_records.visit_id and visits.user_id = auth.uid())
+  );
+
+create policy "自分の訪問写真のみ" on visit_photos
+  for all using (
+    auth.uid() = user_id
+    and exists (select 1 from visits where visits.id = visit_photos.visit_id and visits.user_id = auth.uid())
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from visits where visits.id = visit_photos.visit_id and visits.user_id = auth.uid())
   );
 
 -- breath_checks RLS

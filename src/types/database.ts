@@ -30,6 +30,7 @@ export interface VisitRow {
   has_break: boolean; break_start: string | null; break_end: string | null
   customer_notes: string | null; customer_message: string | null
   next_visit_notes: string | null; staff_message: string | null
+  drive_link: string | null
   report_sent: boolean; report_sent_at: string | null; created_at: string; updated_at: string
 }
 
@@ -38,6 +39,11 @@ export interface VisitTagRow { id: string; visit_id: string; tag_id: string }
 export interface ServiceRecordRow {
   id: string; visit_id: string; time_label: string; content: string | null
   detail: string | null; sort_order: number; created_at: string
+}
+
+export interface VisitPhotoRow {
+  id: string; visit_id: string; user_id: string; file_path: string
+  caption: string | null; sort_order: number; created_at: string
 }
 
 export interface BreathCheckRow { id: string; visit_id: string; memo: string | null; created_at: string }
@@ -135,6 +141,12 @@ export interface Database {
         Update: Partial<Omit<ServiceRecordRow, 'id' | 'created_at'>>
         Relationships: []
       }
+      visit_photos: {
+        Row: VisitPhotoRow
+        Insert: Omit<VisitPhotoRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<VisitPhotoRow, 'id' | 'created_at'>>
+        Relationships: []
+      }
       breath_checks: {
         Row: BreathCheckRow
         Insert: Omit<BreathCheckRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
@@ -194,6 +206,7 @@ export type SupportTag = SupportTagRow
 export type Visit = VisitRow
 export type VisitTag = VisitTagRow
 export type ServiceRecord = ServiceRecordRow
+export type VisitPhoto = VisitPhotoRow
 export type BreathCheck = BreathCheckRow
 export type BreathCheckCell = BreathCheckCellRow
 export type Billing = BillingRow

@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import type { VisitPhoto } from '@/types/database'
 import { useForm, useFieldArray } from 'react-hook-form'
 
 interface ServiceRow { time_label: string; content: string; detail: string }
@@ -21,8 +22,11 @@ interface FormValues {
   customer_message: string
   customer_notes: string
   next_visit_notes: string
+  drive_link: string
   service_records: ServiceRow[]
 }
+
+type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
 
 const RECORD_CATEGORIES = [
   { group: '赤ちゃんのお世話', items: ['ミルク', 'オムツ(うんち)', 'オムツ(おしっこ)', '沐浴', '抱っこ・あやし', '寝かしつけ'] },
@@ -41,6 +45,9 @@ export default function VisitEditPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
   const [quickTime, setQuickTime] = useState('')
   const [quickDetail, setQuickDetail] = useState('')
+  const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
+  const [photoCaption, setPhotoCaption] = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
 
   const { register, control, handleSubmit, watch, setValue, reset } = useForm<FormValues>({
     shouldUnregister: false,
@@ -70,11 +77,19 @@ export default function VisitEditPage() {
     setQuickDetail('')
   }
 
+  async function withSignedUrls(photoRows: VisitPhoto[]): Promise<VisitPhotoWithUrl[]> {
+    return Promise.all(photoRows.map(async photo => {
+      const { data } = await supabase.storage.from('visit-photos').createSignedUrl(photo.file_path, 60 * 60)
+      return { ...photo, signedUrl: data?.signedUrl }
+    }))
+  }
+
   useEffect(() => {
     async function load() {
-      const [{ data }, { data: records }] = await Promise.all([
+      const [{ data }, { data: records }, { data: photoRows }] = await Promise.all([
         supabase.from('visits').select('*').eq('id', visitId).single(),
         supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
+        supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
       ])
       if (!data) { router.push(`/customers/${id}`); return }
       reset({
@@ -89,16 +104,75 @@ export default function VisitEditPage() {
         customer_message: data.customer_message ?? '',
         customer_notes: data.customer_notes ?? '',
         next_visit_notes: data.next_visit_notes ?? '',
+        drive_link: data.drive_link ?? '',
         service_records: (records ?? []).map(r => ({
           time_label: r.time_label ?? '',
           content: r.content ?? '',
           detail: r.detail ?? '',
         })),
       })
+      setPhotos(await withSignedUrls((photoRows ?? []) as VisitPhoto[]))
       setLoading(false)
     }
     load()
   }, [visitId])
+
+  async function uploadPhoto(file: File | null) {
+    if (!file) return
+    setPhotoUploading(true)
+    setError(null)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setError('ログインが必要です')
+      setPhotoUploading(false)
+      return
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const filePath = `${user.id}/${visitId}/${Date.now()}-${safeName}`
+    const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file)
+    if (uploadErr) {
+      setError('写真のアップロードに失敗しました: ' + uploadErr.message)
+      setPhotoUploading(false)
+      return
+    }
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from('visit_photos')
+      .insert({
+        visit_id: visitId,
+        user_id: user.id,
+        file_path: filePath,
+        caption: photoCaption || null,
+        sort_order: photos.length,
+      })
+      .select()
+      .single()
+
+    if (insertErr || !inserted) {
+      setError('写真情報の保存に失敗しました: ' + insertErr?.message)
+      setPhotoUploading(false)
+      return
+    }
+
+    const [photo] = await withSignedUrls([inserted as VisitPhoto])
+    setPhotos(prev => [...prev, photo])
+    setPhotoCaption('')
+    setPhotoUploading(false)
+  }
+
+  async function updatePhotoCaption(photoId: string, caption: string) {
+    setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, caption } : p))
+    await supabase.from('visit_photos').update({ caption: caption || null }).eq('id', photoId)
+  }
+
+  async function deletePhoto(photo: VisitPhotoWithUrl) {
+    const ok = window.confirm('この写真を削除しますか？')
+    if (!ok) return
+    await supabase.from('visit_photos').delete().eq('id', photo.id)
+    await supabase.storage.from('visit-photos').remove([photo.file_path])
+    setPhotos(prev => prev.filter(p => p.id !== photo.id))
+  }
 
   async function saveVisit(values: FormValues, returnToBreathCheck: boolean) {
     setSaving(true)
@@ -119,6 +193,7 @@ export default function VisitEditPage() {
         customer_message: values.customer_message || null,
         customer_notes: values.customer_notes || null,
         next_visit_notes: values.next_visit_notes || null,
+        drive_link: values.drive_link || null,
       })
       .eq('id', visitId)
 
@@ -356,6 +431,63 @@ export default function VisitEditPage() {
           </div>
         </div>
 
+        {/* 写真共有 */}
+        <div className="card space-y-4">
+          <p className="section-label">写真共有</p>
+
+          {photos.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {photos.map(photo => (
+                <div key={photo.id} className="space-y-2 rounded-xl p-3"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                  {photo.signedUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photo.signedUrl}
+                      alt={photo.caption ?? '訪問写真'}
+                      className="w-full rounded-lg object-cover"
+                      style={{ aspectRatio: '4 / 3' }}
+                    />
+                  )}
+                  <textarea
+                    className="input text-sm"
+                    rows={3}
+                    defaultValue={photo.caption ?? ''}
+                    placeholder="写真の内容、作った料理、保存期間など"
+                    onBlur={e => updatePhotoCaption(photo.id, e.target.value)}
+                  />
+                  <button type="button" onClick={() => deletePhoto(photo)} className="btn-secondary w-full text-sm py-2">
+                    写真を削除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3 p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <textarea
+              className="input text-sm"
+              rows={3}
+              placeholder="例：肉じゃが、冷蔵で2日以内。温め直して召し上がってください。"
+              value={photoCaption}
+              onChange={e => setPhotoCaption(e.target.value)}
+            />
+            <label className="btn-primary block text-center text-sm py-3 cursor-pointer">
+              {photoUploading ? 'アップロード中...' : '写真をアップロード'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={photoUploading}
+                onChange={e => {
+                  void uploadPhoto(e.target.files?.[0] ?? null)
+                  e.currentTarget.value = ''
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
         {/* メッセージ */}
         <div className="card space-y-4">
           <p className="section-label">メッセージ</p>
@@ -383,6 +515,10 @@ export default function VisitEditPage() {
           <div>
             <label className="form-label">次回の予定・申し引き事項</label>
             <textarea className="input" rows={2} placeholder="次回持参するもの、注意点など..." {...register('next_visit_notes')} />
+          </div>
+          <div>
+            <label className="form-label">Googleドライブ等の共有リンク</label>
+            <input className="input" type="url" placeholder="https://..." {...register('drive_link')} />
           </div>
         </div>
 
