@@ -200,6 +200,10 @@ export default function PlanningEditPage() {
     router.push(`/customers/${id}/planning/${sessionId}/review`)
   }
 
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -212,7 +216,7 @@ export default function PlanningEditPage() {
   const visibleSections = sections.filter(s => shouldShowSection(s, answers))
 
   return (
-    <div className="px-4 pt-6 pb-32 space-y-5">
+    <div className="px-4 pt-6 pb-8 space-y-5">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="p-2 -ml-2">
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
@@ -221,10 +225,17 @@ export default function PlanningEditPage() {
           </svg>
         </button>
         <h1 className="page-title flex-1">回答を修正</h1>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary text-sm px-4 py-2 disabled:opacity-40 flex-shrink-0"
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
       </div>
 
       <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-        各セクションの回答を編集して「保存して提案を再準備」を押してください。
+        各セクションの回答を編集して「保存」を押してください。
       </p>
 
       {visibleSections.map(section => (
@@ -249,15 +260,24 @@ export default function PlanningEditPage() {
         </div>
       ))}
 
-      {/* 固定フッター */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 py-4 border-t"
-        style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)' }}>
+      <div className="pt-2">
         <button
           onClick={handleSave}
           disabled={saving}
           className="btn-primary w-full py-3 disabled:opacity-40"
         >
-          {saving ? '保存中...' : '保存して提案を再準備'}
+          {saving ? '保存中...' : '保存'}
+        </button>
+      </div>
+
+      <div className="fixed right-4 bottom-6" style={{ zIndex: 20 }}>
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="btn-secondary text-sm px-3 py-2 shadow-sm"
+          aria-label="ページ上部へ戻る"
+        >
+          ↑ 上へ
         </button>
       </div>
     </div>
