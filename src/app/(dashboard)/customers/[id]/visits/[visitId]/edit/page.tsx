@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { VisitPhoto } from '@/types/database'
 import { useForm, useFieldArray } from 'react-hook-form'
+import { createVisitPhotoPath, validatePhotoFile } from '@/lib/uploads/photos'
 
 interface ServiceRow { time_label: string; content: string; detail: string }
 
@@ -119,6 +120,12 @@ export default function VisitEditPage() {
 
   async function uploadPhoto(file: File | null) {
     if (!file) return
+    const validationError = validatePhotoFile(file)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
     setPhotoUploading(true)
     setError(null)
     const { data: { user } } = await supabase.auth.getUser()
@@ -128,11 +135,13 @@ export default function VisitEditPage() {
       return
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const filePath = `${user.id}/${visitId}/${Date.now()}-${safeName}`
-    const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file)
+    const filePath = createVisitPhotoPath(user.id, visitId, file)
+    const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file, {
+      contentType: file.type,
+      upsert: false,
+    })
     if (uploadErr) {
-      setError('写真のアップロードに失敗しました: ' + uploadErr.message)
+      setError('写真のアップロードに失敗しました。時間をおいて再度お試しください。')
       setPhotoUploading(false)
       return
     }
@@ -150,7 +159,8 @@ export default function VisitEditPage() {
       .single()
 
     if (insertErr || !inserted) {
-      setError('写真情報の保存に失敗しました: ' + insertErr?.message)
+      await supabase.storage.from('visit-photos').remove([filePath])
+      setError('写真情報の保存に失敗しました。時間をおいて再度お試しください。')
       setPhotoUploading(false)
       return
     }
@@ -476,7 +486,7 @@ export default function VisitEditPage() {
               {photoUploading ? 'アップロード中...' : '写真をアップロード'}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 disabled={photoUploading}
                 onChange={e => {
