@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
+
+interface ServiceRow { time_label: string; content: string; detail: string }
 
 interface FormValues {
   visit_date: string
@@ -19,7 +21,14 @@ interface FormValues {
   customer_message: string
   customer_notes: string
   next_visit_notes: string
+  service_records: ServiceRow[]
 }
+
+const RECORD_CATEGORIES = [
+  { group: '赤ちゃんのお世話', items: ['ミルク', 'オムツ(うんち)', 'オムツ(おしっこ)', '沐浴', '抱っこ・あやし', '寝かしつけ'] },
+  { group: '家事', items: ['料理', '掃除', '洗濯', '片付け'] },
+  { group: '対話・ケア', items: ['ママと対話', '兄弟と対話', '授乳サポート'] },
+]
 
 export default function VisitEditPage() {
   const { id, visitId } = useParams<{ id: string; visitId: string }>()
@@ -29,10 +38,14 @@ export default function VisitEditPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [quickTime, setQuickTime] = useState('')
+  const [quickDetail, setQuickDetail] = useState('')
 
-  const { register, handleSubmit, watch, setValue, reset } = useForm<FormValues>({
-    defaultValues: { has_break: false },
+  const { register, control, handleSubmit, watch, setValue, reset } = useForm<FormValues>({
+    shouldUnregister: false,
+    defaultValues: { has_break: false, service_records: [] },
   })
+  const { fields, append, remove } = useFieldArray({ control, name: 'service_records' })
   const hasBreak = watch('has_break')
 
   function setNow(field: 'start_time' | 'end_time' | 'break_start' | 'break_end') {
@@ -42,9 +55,26 @@ export default function VisitEditPage() {
     setValue(field, `${hh}:${mm}`)
   }
 
+  function getNowTime() {
+    const now = new Date()
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  }
+
+  function setQuickNow() { setQuickTime(getNowTime()) }
+
+  function addRecord(category: string) {
+    const time = quickTime || getNowTime()
+    if (!quickTime) setQuickTime(time)
+    append({ time_label: time, content: category, detail: quickDetail })
+    setQuickDetail('')
+  }
+
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('visits').select('*').eq('id', visitId).single()
+      const [{ data }, { data: records }] = await Promise.all([
+        supabase.from('visits').select('*').eq('id', visitId).single(),
+        supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
+      ])
       if (!data) { router.push(`/customers/${id}`); return }
       reset({
         visit_date: data.visit_date ?? '',
@@ -58,6 +88,11 @@ export default function VisitEditPage() {
         customer_message: data.customer_message ?? '',
         customer_notes: data.customer_notes ?? '',
         next_visit_notes: data.next_visit_notes ?? '',
+        service_records: (records ?? []).map(r => ({
+          time_label: r.time_label ?? '',
+          content: r.content ?? '',
+          detail: r.detail ?? '',
+        })),
       })
       setLoading(false)
     }
@@ -89,6 +124,25 @@ export default function VisitEditPage() {
       setError('保存に失敗しました: ' + err.message)
       setSaving(false)
       return
+    }
+
+    await supabase.from('service_records').delete().eq('visit_id', visitId)
+    const records = values.service_records.filter(r => r.time_label || r.content)
+    if (records.length > 0) {
+      const { error: recordErr } = await supabase.from('service_records').insert(
+        records.map((r, i) => ({
+          visit_id: visitId,
+          time_label: r.time_label,
+          content: r.content,
+          detail: r.detail,
+          sort_order: i,
+        }))
+      )
+      if (recordErr) {
+        setError('作業記録の保存に失敗しました: ' + recordErr.message)
+        setSaving(false)
+        return
+      }
     }
 
     router.push(`/customers/${id}/visits/${visitId}`)
@@ -182,6 +236,87 @@ export default function VisitEditPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* 作業記録 */}
+        <div className="card space-y-4">
+          <p className="section-label">時間ごとの作業記録</p>
+
+          {fields.length > 0 && (
+            <div className="space-y-2">
+              {fields.map((field, index) => (
+                <div key={field.id} className="grid grid-cols-[90px_1fr_auto] gap-2 items-start p-3 rounded-xl"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                  <input
+                    className="input text-sm"
+                    type="time"
+                    {...register(`service_records.${index}.time_label`)}
+                  />
+                  <div className="space-y-2">
+                    <input
+                      className="input text-sm"
+                      placeholder="作業内容"
+                      {...register(`service_records.${index}.content`)}
+                    />
+                    <input
+                      className="input text-sm"
+                      placeholder="メモ（任意）"
+                      {...register(`service_records.${index}.detail`)}
+                    />
+                  </div>
+                  <button type="button" onClick={() => remove(index)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-sm"
+                    style={{ background: '#fef2f2', color: '#dc2626' }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3 p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold flex-shrink-0" style={{ color: 'var(--color-text)' }}>時刻</span>
+              <input
+                className="input flex-1 text-sm"
+                type="time"
+                value={quickTime}
+                onChange={e => setQuickTime(e.target.value)}
+              />
+              <button type="button" onClick={setQuickNow} className="btn-secondary text-xs px-3 flex-shrink-0">今すぐ</button>
+            </div>
+
+            {RECORD_CATEGORIES.map(cat => (
+              <div key={cat.group}>
+                <p className="text-xs mb-1.5" style={{ color: 'var(--color-text-muted)' }}>{cat.group}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cat.items.map(item => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => addRecord(item)}
+                      className="text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
+                      style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary-dark)' }}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <input
+              className="input text-sm"
+              placeholder="メモ（任意）— 入力後にカテゴリーをタップ"
+              value={quickDetail}
+              onChange={e => setQuickDetail(e.target.value)}
+            />
+
+            <button
+              type="button"
+              onClick={() => append({ time_label: quickTime || getNowTime(), content: '', detail: quickDetail })}
+              className="btn-secondary w-full text-sm py-2"
+            >
+              空の記録を追加
+            </button>
+          </div>
         </div>
 
         {/* メッセージ */}
