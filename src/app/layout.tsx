@@ -12,6 +12,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'cocoria note',
   },
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
