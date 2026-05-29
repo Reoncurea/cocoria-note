@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
 
+const PUBLIC_SIGNUP_ENABLED = false
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,41 +25,39 @@ export default function LoginPage() {
     setError(null)
     setMessage(null)
 
+    if (isSignUp && !PUBLIC_SIGNUP_ENABLED) {
+      setError('現在、新規登録は招待された方のみに限定しています。')
+      setLoading(false)
+      return
+    }
+
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) {
-        if (error.message.includes('already registered') || error.message.includes('already been registered')) {
-          setError('このメールアドレスは既に登録済みです。ログインしてください。')
-        } else {
-          setError(error.message)
-        }
+      const { error: signUpError } = await supabase.auth.signUp({ email, password })
+      if (signUpError) {
+        setError('登録に失敗しました。入力内容を確認してください。')
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-        if (signInError) {
-          setMessage('登録が完了しました。ログインしてください。')
-          setIsSignUp(false)
-        } else {
-          router.push('/dashboard')
-          router.refresh()
-        }
+        setMessage('登録が完了しました。ログインしてください。')
+        setIsSignUp(false)
       }
+      setLoading(false)
+      return
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setError('メールアドレスまたはパスワードが正しくありません。')
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setError('メールアドレスまたはパスワードが正しくありません')
-      } else {
-        router.push('/dashboard')
-        router.refresh()
-      }
+      router.push('/dashboard')
+      router.refresh()
     }
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12"
-      style={{ background: 'linear-gradient(160deg, #fdf2f8 0%, #fff5f9 100%)' }}>
-
-      {/* ロゴ・タイトル */}
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6 py-12"
+      style={{ background: 'linear-gradient(160deg, #fdf2f8 0%, #fff5f9 100%)' }}
+    >
       <div className="text-center mb-8">
         <div className="flex justify-center mb-3">
           <CocoriaLogo size={72} />
@@ -70,7 +70,6 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* ログインカード */}
       <div className="card w-full max-w-sm">
         <h2 className="text-lg font-bold mb-5 text-center" style={{ color: 'var(--color-text)' }}>
           {isSignUp ? '新規登録' : 'ログイン'}
@@ -119,13 +118,19 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <button
-          onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
-          className="w-full mt-4 text-sm text-center"
-          style={{ color: 'var(--color-primary-dark)' }}
-        >
-          {isSignUp ? '既にアカウントをお持ちの方はこちら' : 'アカウントをお持ちでない方はこちら'}
-        </button>
+        {PUBLIC_SIGNUP_ENABLED ? (
+          <button
+            onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null) }}
+            className="w-full mt-4 text-sm text-center"
+            style={{ color: 'var(--color-primary-dark)' }}
+          >
+            {isSignUp ? 'すでにアカウントをお持ちの方はこちら' : 'アカウントをお持ちでない方はこちら'}
+          </button>
+        ) : (
+          <p className="mt-4 text-xs text-center leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+            新規登録は招待制です。利用開始をご希望の方は管理者にお問い合わせください。
+          </p>
+        )}
       </div>
 
       <p className="mt-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
@@ -133,7 +138,7 @@ export default function LoginPage() {
         <a href="/privacy" className="underline" style={{ color: 'var(--color-primary-dark)' }}>
           プライバシーポリシー
         </a>
-        に同意したものとみなします
+        に同意したものとみなします。
       </p>
     </div>
   )
