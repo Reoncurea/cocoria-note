@@ -1,17 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Question, AnswerValue } from '@/lib/planning/types'
 
 interface Props {
   question: Question
+  initialValue?: AnswerValue
   onSubmit: (value: AnswerValue) => void
 }
 
-export default function QuestionInput({ question, onSubmit }: Props) {
-  const [value, setValue] = useState<string>('')
-  const [selected, setSelected] = useState<string[]>([])
-  const [otherText, setOtherText] = useState('')
+function toTextValue(value: AnswerValue | undefined): string {
+  if (value == null || Array.isArray(value)) return ''
+  return String(value)
+}
+
+function toArrayValue(value: AnswerValue | undefined): string[] {
+  return Array.isArray(value) ? value : []
+}
+
+export default function QuestionInput({ question, initialValue, onSubmit }: Props) {
+  const fixedOptions = useMemo(() => question.options ?? [], [question.options])
+  const [value, setValue] = useState<string>(() => toTextValue(initialValue))
+  const [selected, setSelected] = useState<string[]>(() =>
+    toArrayValue(initialValue).filter(v => fixedOptions.includes(v))
+  )
+  const [otherText, setOtherText] = useState(() =>
+    toArrayValue(initialValue).filter(v => !fixedOptions.includes(v)).join('、')
+  )
 
   function handleTextSubmit() {
     const v = value.trim()
@@ -65,12 +80,21 @@ export default function QuestionInput({ question, onSubmit }: Props) {
   if (question.type === 'select') {
     return (
       <div className="flex flex-col gap-2">
-        {(question.options ?? []).map(opt => (
+        {value && (
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            現在: {value}
+          </p>
+        )}
+        {fixedOptions.map(opt => (
           <button
             key={opt}
             onClick={() => handleSelectSubmit(opt)}
             className="text-sm py-3 px-4 rounded-2xl text-left active:opacity-70 transition-opacity"
-            style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', color: 'var(--color-text)' }}
+            style={
+              value === opt
+                ? { background: 'var(--color-primary)', border: '1.5px solid var(--color-primary)', color: '#fff' }
+                : { background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', color: 'var(--color-text)' }
+            }
           >
             {opt}
           </button>
@@ -93,7 +117,7 @@ export default function QuestionInput({ question, onSubmit }: Props) {
     return (
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
-          {(question.options ?? []).map(opt => (
+          {fixedOptions.map(opt => (
             <button
               key={opt}
               onClick={() => toggleMulti(opt)}

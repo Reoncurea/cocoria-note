@@ -113,6 +113,9 @@ export default function PlanningChatPage() {
   const visibleSectionCount = sections.filter(s => shouldShowSection(s, answers)).length
   const currentSection = sections[sectionIdx]
   const currentQuestion = currentSection?.questions[questionIdx]
+  const currentAnswer = currentSection && currentQuestion
+    ? answers[currentSection.id]?.[currentQuestion.id]
+    : undefined
 
   async function handleAnswer(value: AnswerValue) {
     if (!currentSection || !currentQuestion) return
@@ -252,8 +255,9 @@ export default function PlanningChatPage() {
             </button>
           )}
           <QuestionInput
-            key={`${sectionIdx}-${questionIdx}`}
+            key={`${sectionIdx}-${questionIdx}-${JSON.stringify(currentAnswer ?? null)}`}
             question={currentQuestion}
+            initialValue={currentAnswer}
             onSubmit={handleAnswer}
           />
         </div>

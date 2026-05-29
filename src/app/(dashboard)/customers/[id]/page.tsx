@@ -10,6 +10,38 @@ import ContractHistory from '@/components/customer/ContractHistory'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
+type PlanningAnswerMap = Record<string, Record<string, unknown>>
+type PlanningSessionSummary = { id: string }
+
+function hasStoredAnswer(value: unknown): boolean {
+  if (value == null || value === '') return false
+  if (Array.isArray(value)) return value.length > 0
+  return true
+}
+
+function hasAnyStoredAnswer(answers: Record<string, unknown> | undefined): boolean {
+  if (!answers) return false
+  return Object.values(answers).some(hasStoredAnswer)
+}
+
+async function collectLatestPlanningAnswers(sessions: PlanningSessionSummary[]): Promise<PlanningAnswerMap> {
+  const merged: PlanningAnswerMap = {}
+
+  for (const session of sessions.slice(0, 10)) {
+    const sessionRes = await fetch(`/api/planning/sessions/${session.id}`)
+    const sessionData = await sessionRes.json()
+
+    for (const row of sessionData.answers ?? []) {
+      if (merged[row.section_id]) continue
+      if (hasAnyStoredAnswer(row.answers)) {
+        merged[row.section_id] = row.answers
+      }
+    }
+  }
+
+  return merged
+}
+
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const supabase = createClient()
@@ -31,14 +63,7 @@ export default function CustomerDetailPage() {
       const sessRes = await fetch(`/api/planning/sessions?customer_id=${id}`)
       const sessions = await sessRes.json()
       if (Array.isArray(sessions) && sessions.length > 0) {
-        const latest = sessions[0]
-        const sessionRes = await fetch(`/api/planning/sessions/${latest.id}`)
-        const sessionData = await sessionRes.json()
-        const map: Record<string, Record<string, unknown>> = {}
-        for (const row of sessionData.answers ?? []) {
-          map[row.section_id] = row.answers
-        }
-        setPlanningAnswers(map)
+        setPlanningAnswers(await collectLatestPlanningAnswers(sessions))
       }
 
       setLoading(false)
