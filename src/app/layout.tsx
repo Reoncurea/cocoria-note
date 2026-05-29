@@ -2,12 +2,15 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'cocorianote',
+  title: {
+    default: 'cocoria note',
+    template: '%s | cocoria note',
+  },
   description: '顧客カルテ管理システム',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'cocorianote',
+    title: 'cocoria note',
   },
 }
 

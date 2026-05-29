@@ -70,7 +70,7 @@ export default function ReportPage() {
       setLoading(false)
     }
     load()
-    return () => { document.title = 'cocorianote' }
+    return () => { document.title = 'cocoria note' }
   }, [visitId])
 
   async function handlePrint() {

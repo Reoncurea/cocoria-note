@@ -70,7 +70,7 @@ export default function ExportPage() {
       setLoading(false)
     }
     load()
-    return () => { document.title = 'cocorianote' }
+    return () => { document.title = 'cocoria note' }
   }, [sessionId])
 
   if (loading) {
