@@ -133,10 +133,14 @@ export default function LoginPage() {
         )}
       </div>
 
-      <p className="mt-6 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
+      <p className="mt-6 text-xs text-center leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
         ログインすることで
-        <a href="/privacy" className="underline" style={{ color: 'var(--color-primary-dark)' }}>
+        <a href="/privacy" className="underline mx-1" style={{ color: 'var(--color-primary-dark)' }}>
           プライバシーポリシー
+        </a>
+        と
+        <a href="/terms" className="underline mx-1" style={{ color: 'var(--color-primary-dark)' }}>
+          利用規約
         </a>
         に同意したものとみなします。
       </p>

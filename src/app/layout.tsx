@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     default: 'cocoria note',
     template: '%s | cocoria note',
   },
-  description: '顧客カルテ管理システム',
+  description: '産後ケア支援のための顧客カルテ管理システム',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
