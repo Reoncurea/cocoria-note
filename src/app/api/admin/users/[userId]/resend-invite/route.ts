@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase/api-helpers'
 
 type Params = { params: Promise<{ userId: string }> }
+
+const resendSchema = z.object({
+  email: z.string().email().nullable().optional(),
+  role: z.enum(['user', 'supporter']).optional(),
+  onboarding_status: z.enum(['pending', 'completed']).optional(),
+  subscription_status: z.enum(['trialing', 'active', 'past_due', 'canceled']).optional(),
+}).strict()
+
+function getAppOrigin(request: NextRequest) {
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN
+  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '')
+  return new URL(request.url).origin
+}
 
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
@@ -49,17 +63,32 @@ export async function POST(request: NextRequest, { params }: Params) {
     },
   })
 
+  const requestBody = await request.json().catch(() => ({}))
+  const parsedBody = resendSchema.safeParse(requestBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: parsedBody.error.flatten() }, { status: 400 })
+  }
+
   const { data: existingProfile, error: profileError } = await adminSupabase
     .from('user_profiles')
     .select('email, role, onboarding_status, subscription_status')
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (profileError || !existingProfile?.email) {
-    return NextResponse.json({ error: '対象ユーザーが見つかりません' }, { status: 404 })
+  if (profileError) {
+    return NextResponse.json({ error: '対象ユーザーを確認できませんでした' }, { status: 500 })
   }
 
-  if (existingProfile.onboarding_status !== 'pending') {
+  const email = existingProfile?.email ?? parsedBody.data.email
+  const role = existingProfile?.role ?? parsedBody.data.role ?? 'user'
+  const onboardingStatus = existingProfile?.onboarding_status ?? parsedBody.data.onboarding_status
+  const subscriptionStatus = existingProfile?.subscription_status ?? parsedBody.data.subscription_status ?? 'trialing'
+
+  if (!email) {
+    return NextResponse.json({ error: '対象メールアドレスが見つかりません' }, { status: 404 })
+  }
+
+  if (onboardingStatus !== 'pending') {
     return NextResponse.json({ error: '再送できるのは初回確認前のユーザーだけです' }, { status: 400 })
   }
 
@@ -74,9 +103,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     .delete()
     .eq('user_id', userId)
 
-  const origin = new URL(request.url).origin
+  const origin = getAppOrigin(request)
   const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(
-    existingProfile.email,
+    email,
     {
       redirectTo: `${origin}/auth/callback?next=/set-password`,
       data: {
@@ -95,10 +124,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     .from('user_profiles')
     .upsert({
       user_id: inviteData.user.id,
-      email: existingProfile.email,
-      role: existingProfile.role,
-      onboarding_status: existingProfile.onboarding_status,
-      subscription_status: existingProfile.subscription_status,
+      email,
+      role,
+      onboarding_status: onboardingStatus,
+      subscription_status: subscriptionStatus,
       invited_by: user!.id,
       invited_at: now,
       updated_at: now,

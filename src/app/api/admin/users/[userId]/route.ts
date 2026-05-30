@@ -11,6 +11,11 @@ const patchSchema = z.object({
   subscription_status: z.enum(['trialing', 'active', 'past_due', 'canceled']).optional(),
 }).strict()
 
+const deleteSchema = z.object({
+  email: z.string().email().nullable().optional(),
+  onboarding_status: z.enum(['pending', 'completed']).optional(),
+}).strict()
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -89,17 +94,22 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     },
   })
 
+  const requestBody = await _request.json().catch(() => ({}))
+  const parsedBody = deleteSchema.safeParse(requestBody)
+  const requestedStatus = parsedBody.success ? parsedBody.data.onboarding_status : undefined
+
   const { data: profile, error: profileError } = await adminSupabase
     .from('user_profiles')
     .select('user_id, onboarding_status')
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (profileError || !profile) {
-    return NextResponse.json({ error: '対象ユーザーが見つかりません' }, { status: 404 })
+  if (profileError) {
+    return NextResponse.json({ error: '対象ユーザーを確認できませんでした' }, { status: 500 })
   }
 
-  if (profile.onboarding_status !== 'pending') {
+  const onboardingStatus = profile?.onboarding_status ?? requestedStatus
+  if (onboardingStatus !== 'pending') {
     return NextResponse.json({ error: '削除できるのは初回確認前の招待だけです' }, { status: 400 })
   }
 

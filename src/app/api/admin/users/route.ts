@@ -10,6 +10,12 @@ const inviteSchema = z.object({
   subscription_status: z.enum(['trialing', 'active']).default('trialing'),
 }).strict()
 
+function getAppOrigin(request: NextRequest) {
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN
+  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '')
+  return new URL(request.url).origin
+}
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
   })
 
   const { email, role, onboarding_status, subscription_status } = result.data
-  const origin = new URL(request.url).origin
+  const origin = getAppOrigin(request)
 
   const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/set-password`,

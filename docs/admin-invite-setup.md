@@ -8,11 +8,12 @@
 
 ## 必要な設定
 
-Vercelの環境変数に、Supabaseの `service_role` キーを追加する。
+Vercelの環境変数に、Supabaseの `service_role` キーと本番URLを追加する。
 
 | 名前 | 入れる値 |
 | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Project Settings の service_role key |
+| `NEXT_PUBLIC_APP_ORIGIN` | `https://note.cocoria.net` |
 
 ## 注意
 
@@ -50,7 +51,35 @@ Value: Supabaseでコピーしたservice_role key
 Environment: Production
 ```
 
+```text
+Name: NEXT_PUBLIC_APP_ORIGIN
+Value: https://note.cocoria.net
+Environment: Production
+```
+
 Previewでも使う場合は Preview にも追加する。
+
+### 2-2. SupabaseのURL設定を確認する
+
+SupabaseのAuthenticationで、次を設定する。
+
+Site URL:
+
+```text
+https://note.cocoria.net
+```
+
+Redirect URLs:
+
+```text
+https://note.cocoria.net/auth/callback
+```
+
+VercelのURLでも確認したい場合だけ、次も残す。
+
+```text
+https://cocoria-note.vercel.app/auth/callback
+```
 
 ### 3. 再デプロイする
 

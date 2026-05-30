@@ -132,6 +132,13 @@ export default function AdminUsersClient() {
 
     const response = await fetch(`/api/admin/users/${user.user_id}/resend-invite`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email,
+        role: user.role,
+        onboarding_status: user.onboarding_status,
+        subscription_status: user.subscription_status,
+      }),
     })
 
     if (!response.ok) {
@@ -162,6 +169,11 @@ export default function AdminUsersClient() {
 
     const response = await fetch(`/api/admin/users/${user.user_id}`, {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email,
+        onboarding_status: user.onboarding_status,
+      }),
     })
 
     if (!response.ok) {
