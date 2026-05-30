@@ -34,6 +34,38 @@ function getInviteErrorMessage(message: string | undefined, fallback: string) {
   return message ? `${fallback}（Supabase: ${message}）` : fallback
 }
 
+async function findAuthUserByEmail(
+  adminSupabase: {
+    auth: {
+      admin: {
+        listUsers: (params: { page: number; perPage: number }) => Promise<{
+          data: { users: Array<{ id: string; email?: string | null }> }
+          error: { message: string } | null
+        }>
+      }
+    }
+  },
+  email: string,
+) {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await adminSupabase.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    })
+
+    if (error) return { userId: null, error }
+
+    const matchedUser = data.users.find((authUser) =>
+      authUser.email?.toLowerCase() === email.toLowerCase()
+    )
+
+    if (matchedUser) return { userId: matchedUser.id, error: null }
+    if (data.users.length < 100) break
+  }
+
+  return { userId: null, error: null }
+}
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -114,6 +146,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: 'このメールアドレスはすでに登録済みです。',
     }, { status: 409 })
+  }
+
+  const { userId: staleAuthUserId, error: listUsersError } = await findAuthUserByEmail(adminSupabase, email)
+
+  if (listUsersError) {
+    return NextResponse.json({
+      error: '既存の招待状態を確認できませんでした。SupabaseのAuthenticationを確認してください。',
+    }, { status: 500 })
+  }
+
+  if (staleAuthUserId) {
+    const { error: deleteStaleAuthError } = await adminSupabase.auth.admin.deleteUser(staleAuthUserId)
+
+    if (deleteStaleAuthError) {
+      return NextResponse.json({
+        error: '古い招待ユーザーがAuthenticationに残っています。SupabaseのAuthenticationで同じメールを削除してから再度招待してください。',
+      }, { status: 500 })
+    }
   }
 
   const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
