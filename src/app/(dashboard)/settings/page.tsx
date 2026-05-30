@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { SupportTag } from '@/types/database'
@@ -16,15 +17,35 @@ export default function SettingsPage() {
   const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(true)
   const [csvLoading, setCsvLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     let ignore = false
 
     async function loadTags() {
-      const { data } = await supabase
-        .from('support_tags')
-        .select('*')
-        .order('sort_order')
+      const [{ data }, { data: { user } }] = await Promise.all([
+        supabase
+          .from('support_tags')
+          .select('*')
+          .order('sort_order'),
+        supabase.auth.getUser(),
+      ])
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, onboarding_status, subscription_status')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!ignore) {
+          setIsAdmin(
+            profile?.role === 'admin' &&
+            profile.onboarding_status === 'completed' &&
+            (profile.subscription_status === 'trialing' || profile.subscription_status === 'active')
+          )
+        }
+      }
 
       if (!ignore) {
         setTags(data ?? [])
@@ -167,6 +188,18 @@ export default function SettingsPage() {
       </div>
 
       {/* ログアウト */}
+      {isAdmin && (
+        <div className="card space-y-3">
+          <p className="section-label">管理者メニュー</p>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            利用者の権限、初回確認、利用状態を管理します。
+          </p>
+          <Link href="/admin/users" className="btn-secondary block text-center">
+            利用者管理を開く
+          </Link>
+        </div>
+      )}
+
       <div className="card">
         <p className="section-label">アカウント</p>
         <button

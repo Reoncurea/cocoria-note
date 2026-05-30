@@ -8,6 +8,6 @@ export async function requireAuth() {
   return { user, supabase, error: null }
 }
 
-export function dbError(error: { message: string }, status = 500) {
-  return NextResponse.json({ error: error.message }, { status })
+export function dbError(_error: { message: string }, status = 500) {
+  return NextResponse.json({ error: 'Database request failed' }, { status })
 }

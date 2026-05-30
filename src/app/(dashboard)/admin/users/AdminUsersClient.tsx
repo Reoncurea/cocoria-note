@@ -1,0 +1,206 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import type { UserProfile } from '@/types/database'
+
+const ROLE_LABELS = {
+  admin: '管理者',
+  user: '業務用',
+  supporter: '支援者',
+} as const
+
+const ONBOARDING_LABELS = {
+  pending: '初回確認前',
+  completed: '確認済み',
+} as const
+
+const SUBSCRIPTION_LABELS = {
+  trialing: '試用中',
+  active: '有効',
+  past_due: '確認必要',
+  canceled: '停止中',
+} as const
+
+type EditableField = 'role' | 'onboarding_status' | 'subscription_status'
+
+export default function AdminUsersClient() {
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadUsers() {
+      const response = await fetch('/api/admin/users', { cache: 'no-store' })
+      if (!response.ok) {
+        if (!ignore) {
+          setError('ユーザー一覧を読み込めませんでした')
+          setLoading(false)
+        }
+        return
+      }
+
+      const data = await response.json() as UserProfile[]
+      if (!ignore) {
+        setUsers(data)
+        setLoading(false)
+      }
+    }
+
+    void loadUsers()
+    return () => { ignore = true }
+  }, [])
+
+  async function updateUser(userId: string, field: EditableField, value: string) {
+    setSavingId(userId)
+    setMessage(null)
+    setError(null)
+
+    const response = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value }),
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      setError(body?.error ?? '更新できませんでした')
+      setSavingId(null)
+      return
+    }
+
+    const updated = await response.json() as UserProfile
+    setUsers(prev => prev.map(user => user.user_id === updated.user_id ? updated : user))
+    setMessage('更新しました')
+    setSavingId(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--color-primary)' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {message && (
+        <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#ecfdf5', color: '#047857' }}>
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#fef2f2', color: '#dc2626' }}>
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-3">
+        {users.map(user => (
+          <article key={user.user_id} className="card space-y-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>
+                  {user.email ?? 'メール未設定'}
+                </p>
+                <p className="text-xs break-all" style={{ color: 'var(--color-text-muted)' }}>
+                  {user.user_id}
+                </p>
+              </div>
+              <StatusBadge status={user.subscription_status} />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <SelectField
+                label="権限"
+                value={user.role}
+                disabled={savingId === user.user_id}
+                options={ROLE_LABELS}
+                onChange={value => updateUser(user.user_id, 'role', value)}
+              />
+              <SelectField
+                label="初回確認"
+                value={user.onboarding_status}
+                disabled={savingId === user.user_id}
+                options={ONBOARDING_LABELS}
+                onChange={value => updateUser(user.user_id, 'onboarding_status', value)}
+              />
+              <SelectField
+                label="利用状態"
+                value={user.subscription_status}
+                disabled={savingId === user.user_id}
+                options={SUBSCRIPTION_LABELS}
+                onChange={value => updateUser(user.user_id, 'subscription_status', value)}
+              />
+            </div>
+
+            <div className="grid gap-1 text-xs sm:grid-cols-2" style={{ color: 'var(--color-text-muted)' }}>
+              <p>招待: {formatDate(user.invited_at)}</p>
+              <p>初回完了: {formatDate(user.accepted_at)}</p>
+              <p>作成: {formatDate(user.created_at)}</p>
+              <p>更新: {formatDate(user.updated_at)}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SelectField<T extends Record<string, string>>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: keyof T & string
+  options: T
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <label>
+      <span className="form-label">{label}</span>
+      <select
+        className="input"
+        value={value}
+        disabled={disabled}
+        onChange={event => onChange(event.target.value)}
+      >
+        {Object.entries(options).map(([optionValue, labelText]) => (
+          <option key={optionValue} value={optionValue}>
+            {labelText}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function StatusBadge({ status }: { status: UserProfile['subscription_status'] }) {
+  const style =
+    status === 'active' || status === 'trialing'
+      ? { background: '#dcfce7', color: '#166534' }
+      : status === 'past_due'
+        ? { background: '#fef3c7', color: '#92400e' }
+        : { background: '#fee2e2', color: '#991b1b' }
+
+  return (
+    <span className="badge self-start" style={style}>
+      {SUBSCRIPTION_LABELS[status]}
+    </span>
+  )
+}
+
+function formatDate(value: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleDateString('ja-JP')
+}

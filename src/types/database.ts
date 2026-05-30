@@ -94,6 +94,23 @@ export interface InquiryRow {
   is_processed: boolean; created_at: string
 }
 
+export interface UserProfileRow {
+  user_id: string
+  email: string | null
+  display_name: string | null
+  role: 'admin' | 'user' | 'supporter'
+  onboarding_status: 'pending' | 'completed'
+  subscription_status: 'trialing' | 'active' | 'past_due' | 'canceled'
+  invited_by: string | null
+  invited_at: string | null
+  accepted_at: string | null
+  trial_ends_at: string | null
+  current_period_end: string | null
+  grace_until: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ===== Database 型（Supabase クライアント用） =====
 
 export interface Database {
@@ -183,6 +200,12 @@ export interface Database {
         Update: Partial<Omit<InquiryRow, 'id' | 'created_at'>>
         Relationships: []
       }
+      user_profiles: {
+        Row: UserProfileRow
+        Insert: Omit<UserProfileRow, 'created_at' | 'updated_at'> & { created_at?: string; updated_at?: string }
+        Update: Partial<Omit<UserProfileRow, 'user_id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
       customer_activities: {
         Row: CustomerActivityRow
         Insert: Omit<CustomerActivityRow, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string }
@@ -214,6 +237,7 @@ export type CustomerContract = CustomerContractRow
 export type VisitBilling = VisitBillingRow
 export type Inquiry = InquiryRow
 export type CustomerActivity = CustomerActivityRow
+export type UserProfile = UserProfileRow
 
 // 拡張型
 export type CustomerWithDetails = Customer & {
