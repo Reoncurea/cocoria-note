@@ -18,6 +18,24 @@ function getAppOrigin(request: NextRequest) {
   return new URL(request.url).origin
 }
 
+function getInviteErrorMessage(message: string | undefined, fallback: string) {
+  const lower = message?.toLowerCase() ?? ''
+
+  if (lower.includes('already') || lower.includes('registered') || lower.includes('exists')) {
+    return 'このメールアドレスはすでに登録済みです。SupabaseのAuthenticationで同じメールの古いユーザーが残っていないか確認してください。'
+  }
+
+  if (lower.includes('redirect') || lower.includes('not allowed') || lower.includes('uri')) {
+    return '招待リンクの戻り先URLがSupabaseで許可されていません。Redirect URLsに https://note.cocoria.net/auth/callback を追加してください。'
+  }
+
+  if (lower.includes('rate') || lower.includes('too many')) {
+    return 'Supabaseのメール送信制限にかかっている可能性があります。少し時間をおいて再度お試しください。'
+  }
+
+  return message ? `${fallback}（Supabase: ${message}）` : fallback
+}
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -94,7 +112,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const { error: deleteAuthError } = await adminSupabase.auth.admin.deleteUser(userId)
 
-  if (deleteAuthError) {
+  if (deleteAuthError && !deleteAuthError.message.toLowerCase().includes('not found')) {
     return NextResponse.json({ error: '古い招待を取り消せませんでした' }, { status: 500 })
   }
 
@@ -116,7 +134,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   )
 
   if (inviteError || !inviteData.user) {
-    return NextResponse.json({ error: '招待メールを再送できませんでした' }, { status: 500 })
+    return NextResponse.json({
+      error: getInviteErrorMessage(inviteError?.message, '招待メールを再送できませんでした'),
+    }, { status: 500 })
   }
 
   const now = new Date().toISOString()

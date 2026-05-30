@@ -24,6 +24,11 @@ const SUBSCRIPTION_LABELS = {
 
 type EditableField = 'role' | 'onboarding_status' | 'subscription_status'
 
+function getErrorText(body: { error?: unknown } | null, fallback: string) {
+  if (typeof body?.error === 'string') return body.error
+  return fallback
+}
+
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -73,7 +78,7 @@ export default function AdminUsersClient() {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string } | null
-      setError(body?.error ?? '更新できませんでした')
+      setError(getErrorText(body, '更新できませんでした'))
       setSavingId(null)
       return
     }
@@ -106,7 +111,7 @@ export default function AdminUsersClient() {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string } | null
-      setError(body?.error ?? '招待メールを送信できませんでした')
+      setError(getErrorText(body, '招待メールを送信できませんでした'))
       setInviting(false)
       return
     }
@@ -143,7 +148,7 @@ export default function AdminUsersClient() {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string } | null
-      setError(body?.error ?? '招待メールを再送できませんでした')
+      setError(getErrorText(body, '招待メールを再送できませんでした'))
       setActionId(null)
       return
     }
@@ -178,7 +183,7 @@ export default function AdminUsersClient() {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string } | null
-      setError(body?.error ?? '招待を削除できませんでした')
+      setError(getErrorText(body, '招待を削除できませんでした'))
       setActionId(null)
       return
     }

@@ -16,6 +16,24 @@ function getAppOrigin(request: NextRequest) {
   return new URL(request.url).origin
 }
 
+function getInviteErrorMessage(message: string | undefined, fallback: string) {
+  const lower = message?.toLowerCase() ?? ''
+
+  if (lower.includes('already') || lower.includes('registered') || lower.includes('exists')) {
+    return 'このメールアドレスはすでに登録済みです。表示中のユーザーが初回確認前なら「招待メールを再送」を使ってください。'
+  }
+
+  if (lower.includes('redirect') || lower.includes('not allowed') || lower.includes('uri')) {
+    return '招待リンクの戻り先URLがSupabaseで許可されていません。Redirect URLsに https://note.cocoria.net/auth/callback を追加してください。'
+  }
+
+  if (lower.includes('rate') || lower.includes('too many')) {
+    return 'Supabaseのメール送信制限にかかっている可能性があります。少し時間をおいて再度お試しください。'
+  }
+
+  return message ? `${fallback}（Supabase: ${message}）` : fallback
+}
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -80,6 +98,24 @@ export async function POST(request: NextRequest) {
   const { email, role, onboarding_status, subscription_status } = result.data
   const origin = getAppOrigin(request)
 
+  const { data: existingProfile } = await adminSupabase
+    .from('user_profiles')
+    .select('user_id, onboarding_status')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existingProfile?.onboarding_status === 'pending') {
+    return NextResponse.json({
+      error: 'このメールアドレスはすでに招待済みです。下のカードの「招待メールを再送」を使ってください。',
+    }, { status: 409 })
+  }
+
+  if (existingProfile) {
+    return NextResponse.json({
+      error: 'このメールアドレスはすでに登録済みです。',
+    }, { status: 409 })
+  }
+
   const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/set-password`,
     data: {
@@ -89,7 +125,9 @@ export async function POST(request: NextRequest) {
   })
 
   if (inviteError || !inviteData.user) {
-    return NextResponse.json({ error: '招待メールを送信できませんでした' }, { status: 500 })
+    return NextResponse.json({
+      error: getInviteErrorMessage(inviteError?.message, '招待メールを送信できませんでした'),
+    }, { status: 500 })
   }
 
   const { data: profile, error: profileError } = await adminSupabase
