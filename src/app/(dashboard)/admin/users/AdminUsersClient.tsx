@@ -32,6 +32,7 @@ export default function AdminUsersClient() {
   const [loading, setLoading] = useState(true)
   const [inviting, setInviting] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [actionId, setActionId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -117,6 +118,62 @@ export default function AdminUsersClient() {
     setInviteStatus('trialing')
     setMessage('招待メールを送信しました')
     setInviting(false)
+  }
+
+  async function resendInvite(user: UserProfile) {
+    if (user.onboarding_status !== 'pending') {
+      setError('再送できるのは初回確認前のユーザーだけです')
+      return
+    }
+
+    setActionId(user.user_id)
+    setMessage(null)
+    setError(null)
+
+    const response = await fetch(`/api/admin/users/${user.user_id}/resend-invite`, {
+      method: 'POST',
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      setError(body?.error ?? '招待メールを再送できませんでした')
+      setActionId(null)
+      return
+    }
+
+    const resent = await response.json() as UserProfile
+    setUsers(prev => [resent, ...prev.filter(item => item.user_id !== user.user_id && item.user_id !== resent.user_id)])
+    setMessage('招待メールを再送しました')
+    setActionId(null)
+  }
+
+  async function deleteInvite(user: UserProfile) {
+    if (user.onboarding_status !== 'pending') {
+      setError('削除できるのは初回確認前の招待だけです')
+      return
+    }
+
+    const ok = window.confirm(`${user.email ?? 'このユーザー'} の未完了招待を削除します。よろしいですか？`)
+    if (!ok) return
+
+    setActionId(user.user_id)
+    setMessage(null)
+    setError(null)
+
+    const response = await fetch(`/api/admin/users/${user.user_id}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      setError(body?.error ?? '招待を削除できませんでした')
+      setActionId(null)
+      return
+    }
+
+    setUsers(prev => prev.filter(item => item.user_id !== user.user_id))
+    setMessage('未完了の招待を削除しました')
+    setActionId(null)
   }
 
   if (loading) {
@@ -235,6 +292,28 @@ export default function AdminUsersClient() {
               <p>作成: {formatDate(user.created_at)}</p>
               <p>更新: {formatDate(user.updated_at)}</p>
             </div>
+
+            {user.onboarding_status === 'pending' && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={actionId === user.user_id}
+                  onClick={() => resendInvite(user)}
+                  className="btn-secondary disabled:opacity-60"
+                >
+                  {actionId === user.user_id ? '処理中...' : '招待メールを再送'}
+                </button>
+                <button
+                  type="button"
+                  disabled={actionId === user.user_id}
+                  onClick={() => deleteInvite(user)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-60"
+                  style={{ background: '#fef2f2', color: '#dc2626' }}
+                >
+                  招待を削除
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </div>

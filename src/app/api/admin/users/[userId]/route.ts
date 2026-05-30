@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase/api-helpers'
 
@@ -63,4 +64,55 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json(data)
+}
+
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const { userId } = await params
+  const { user, error } = await requireAdmin()
+  if (error) return error
+
+  if (userId === user!.id) {
+    return NextResponse.json({ error: '自分自身は削除できません' }, { status: 400 })
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  if (!serviceRoleKey || !supabaseUrl) {
+    return NextResponse.json({ error: '管理用の環境設定が未完了です' }, { status: 500 })
+  }
+
+  const adminSupabase = createAdminClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  const { data: profile, error: profileError } = await adminSupabase
+    .from('user_profiles')
+    .select('user_id, onboarding_status')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (profileError || !profile) {
+    return NextResponse.json({ error: '対象ユーザーが見つかりません' }, { status: 404 })
+  }
+
+  if (profile.onboarding_status !== 'pending') {
+    return NextResponse.json({ error: '削除できるのは初回確認前の招待だけです' }, { status: 400 })
+  }
+
+  const { error: deleteAuthError } = await adminSupabase.auth.admin.deleteUser(userId)
+
+  if (deleteAuthError) {
+    return NextResponse.json({ error: '招待を削除できませんでした' }, { status: 500 })
+  }
+
+  await adminSupabase
+    .from('user_profiles')
+    .delete()
+    .eq('user_id', userId)
+
+  return NextResponse.json({ ok: true })
 }
