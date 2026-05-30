@@ -51,8 +51,8 @@ APIへの直接アクセスは、同じ条件で `403` を返す。
 ## 次にやること
 
 1. 本番DBで `pg_policies` を確認し、古い広いポリシーが残っていないか確認する。
-2. `20260530_add_profile_based_access_control.sql` を本番に適用する。
-3. admin用のユーザー管理画面を作る。
+2. `20260530_add_profile_based_access_control.sql` と `20260530_limit_admin_data_visibility.sql` を本番に適用する。
+3. Vercelに `SUPABASE_SERVICE_ROLE_KEY` を追加し、管理画面から招待メールを送れるようにする。
 4. `subscription_status` を手動更新する運用から始める。
 5. Stripe導入前に `subscriptions` テーブルを追加する。
 6. supporterを入れる前に `customer_assignments` を追加する。

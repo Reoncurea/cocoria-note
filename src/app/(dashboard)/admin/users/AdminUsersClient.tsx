@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import type { UserProfile } from '@/types/database'
 
 const ROLE_LABELS = {
@@ -25,7 +26,11 @@ type EditableField = 'role' | 'onboarding_status' | 'subscription_status'
 
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UserProfile[]>([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'user' | 'supporter'>('user')
+  const [inviteStatus, setInviteStatus] = useState<'trialing' | 'active'>('trialing')
   const [loading, setLoading] = useState(true)
+  const [inviting, setInviting] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +83,42 @@ export default function AdminUsersClient() {
     setSavingId(null)
   }
 
+  async function inviteUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const email = inviteEmail.trim()
+    if (!email) return
+
+    setInviting(true)
+    setMessage(null)
+    setError(null)
+
+    const response = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        role: inviteRole,
+        onboarding_status: 'pending',
+        subscription_status: inviteStatus,
+      }),
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      setError(body?.error ?? '招待メールを送信できませんでした')
+      setInviting(false)
+      return
+    }
+
+    const invited = await response.json() as UserProfile
+    setUsers(prev => [invited, ...prev.filter(user => user.user_id !== invited.user_id)])
+    setInviteEmail('')
+    setInviteRole('user')
+    setInviteStatus('trialing')
+    setMessage('招待メールを送信しました')
+    setInviting(false)
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -89,6 +130,54 @@ export default function AdminUsersClient() {
 
   return (
     <div className="space-y-4">
+      <form onSubmit={inviteUser} className="card space-y-4">
+        <div>
+          <p className="section-label">新規招待</p>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+            メールアドレスを入力すると、Supabaseから招待メールが送信されます。招待直後は初回確認前として登録されます。
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-[1fr_160px_160px_auto] md:items-end">
+          <label>
+            <span className="form-label">メールアドレス</span>
+            <input
+              className="input"
+              type="email"
+              value={inviteEmail}
+              onChange={event => setInviteEmail(event.target.value)}
+              placeholder="example@example.com"
+              disabled={inviting}
+              required
+            />
+          </label>
+
+          <SelectField
+            label="権限"
+            value={inviteRole}
+            disabled={inviting}
+            options={{ user: '業務用', supporter: '支援者' }}
+            onChange={value => setInviteRole(value as 'user' | 'supporter')}
+          />
+
+          <SelectField
+            label="利用状態"
+            value={inviteStatus}
+            disabled={inviting}
+            options={{ trialing: '試用中', active: '有効' }}
+            onChange={value => setInviteStatus(value as 'trialing' | 'active')}
+          />
+
+          <button
+            type="submit"
+            disabled={inviting || !inviteEmail.trim()}
+            className="btn-primary disabled:opacity-60"
+          >
+            {inviting ? '送信中...' : '招待する'}
+          </button>
+        </div>
+      </form>
+
       {message && (
         <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#ecfdf5', color: '#047857' }}>
           {message}
