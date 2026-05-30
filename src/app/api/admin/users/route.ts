@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   const origin = new URL(request.url).origin
 
   const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/account-status`,
+    redirectTo: `${origin}/auth/callback?next=/set-password`,
     data: {
       invited_by: user!.id,
       app: 'cocoria-note',

@@ -29,14 +29,14 @@ function statusMessage(profile: Profile | null) {
   if (profile.onboarding_status !== 'completed') {
     return {
       title: '初回確認がまだ完了していません',
-      body: '個人情報や写真の取り扱い、利用範囲の説明が完了すると利用を開始できます。',
+      body: 'パスワード設定後、管理者による初回確認が完了すると利用を開始できます。',
     }
   }
 
   if (profile.subscription_status === 'past_due') {
     return {
       title: 'お支払い状況の確認が必要です',
-      body: '継続利用の前に、支払い状況の確認が必要です。管理者に連絡してください。',
+      body: '継続利用の前に、お支払い状況の確認が必要です。管理者に連絡してください。',
     }
   }
 
@@ -103,6 +103,9 @@ export default async function AccountStatusPage() {
         </div>
 
         <div className="space-y-3">
+          <Link href="/set-password" className="btn-primary block w-full">
+            パスワードを設定する
+          </Link>
           <SignOutButton />
           <div className="flex items-center justify-center gap-4 text-xs">
             <Link href="/privacy" className="underline" style={{ color: 'var(--color-primary-dark)' }}>
