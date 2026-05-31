@@ -128,13 +128,25 @@ cocoria noteへのご招待
 
 本文例:
 
-```text
-cocoria noteに招待されました。
+```html
+<p>cocoria noteに招待されました。</p>
 
-下記リンクから初回設定を進めてください。
-{{ .ConfirmationURL }}
+<p>下のボタンから初回設定を進めてください。</p>
 
-このメールに心当たりがない場合は、破棄してください。
+<p>
+  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 20px;background:#ec6aa8;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">
+    初回設定をはじめる
+  </a>
+</p>
+
+<p style="font-size:12px;color:#666666;">
+  ボタンを押せない場合は、下記URLをコピーしてブラウザで開いてください。<br>
+  {{ .ConfirmationURL }}
+</p>
+
+<p style="font-size:12px;color:#666666;">
+  このメールに心当たりがない場合は、破棄してください。
+</p>
 ```
 
 `{{ .ConfirmationURL }}` はSupabaseが招待リンクに置き換えるため、削除しない。
