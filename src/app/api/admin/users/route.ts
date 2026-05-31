@@ -20,7 +20,7 @@ function getInviteErrorMessage(message: string | undefined, fallback: string) {
   const lower = message?.toLowerCase() ?? ''
 
   if (lower.includes('already') || lower.includes('registered') || lower.includes('exists')) {
-    return 'このメールアドレスはすでに登録済みです。表示中のユーザーが初回確認前なら「招待メールを再送」を使ってください。'
+    return 'このメールアドレスはすでに登録済みです。表示中のユーザーが未設定なら「招待メールを再送」を使ってください。'
   }
 
   if (lower.includes('redirect') || lower.includes('not allowed') || lower.includes('uri')) {

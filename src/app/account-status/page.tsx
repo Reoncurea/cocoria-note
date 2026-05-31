@@ -30,14 +30,14 @@ function statusMessage(profile: Profile | null) {
   if (profile.onboarding_status !== 'completed') {
     if (profile.accepted_at) {
       return {
-        title: '管理者の確認待ちです',
-        body: 'パスワード設定は完了しています。管理者が確認済みに変更すると、cocoria noteを利用できます。',
+        title: '利用開始設定を確認中です',
+        body: 'パスワード設定は完了しています。利用開始状態の反映に時間がかかっている可能性があります。時間をおいて再度お試しください。',
       }
     }
 
     return {
-      title: '初回確認がまだ完了していません',
-      body: 'パスワード設定後、管理者による初回確認が完了すると利用を開始できます。',
+      title: 'パスワード設定がまだ完了していません',
+      body: '招待メールのリンクからパスワードを設定すると、cocoria noteを利用開始できます。',
     }
   }
 

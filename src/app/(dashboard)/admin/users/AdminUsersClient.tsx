@@ -11,8 +11,8 @@ const ROLE_LABELS = {
 } as const
 
 const ONBOARDING_LABELS = {
-  pending: '初回確認前',
-  completed: '確認済み',
+  pending: '未設定',
+  completed: '利用開始済み',
 } as const
 
 const SUBSCRIPTION_LABELS = {
@@ -131,7 +131,7 @@ export default function AdminUsersClient() {
 
   async function resendInvite(user: UserProfile) {
     if (user.onboarding_status !== 'pending') {
-      setError('再送できるのは初回確認前のユーザーだけです')
+      setError('再送できるのは未設定のユーザーだけです')
       return
     }
 
@@ -165,7 +165,7 @@ export default function AdminUsersClient() {
 
   async function deleteInvite(user: UserProfile) {
     if (user.onboarding_status !== 'pending') {
-      setError('削除できるのは初回確認前の招待だけです')
+      setError('削除できるのは未設定の招待だけです')
       return
     }
 
@@ -210,7 +210,7 @@ export default function AdminUsersClient() {
     <div className="space-y-4">
       {users.some(needsAdminReview) && (
         <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: '#fff7ed', color: '#c2410c' }}>
-          初回設定が完了し、管理者確認待ちのユーザーがいます。内容を確認して「初回確認」を「確認済み」にしてください。
+          初回設定済みですが、利用開始になっていないユーザーがいます。内容を確認して「利用開始済み」にしてください。
         </div>
       )}
 
@@ -218,7 +218,7 @@ export default function AdminUsersClient() {
         <div>
           <p className="section-label">新規招待</p>
           <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-            メールアドレスを入力すると、Supabaseから招待メールが送信されます。招待直後は初回確認前として登録されます。
+            メールアドレスを入力すると、Supabaseから招待メールが送信されます。パスワード設定が完了すると自動で利用開始済みになります。
           </p>
         </div>
 
@@ -293,7 +293,7 @@ export default function AdminUsersClient() {
               <div className="flex flex-wrap gap-2">
                 {needsAdminReview(user) && (
                   <span className="badge self-start" style={{ background: '#ffedd5', color: '#c2410c' }}>
-                    確認待ち
+                    要確認
                   </span>
                 )}
                 <StatusBadge status={user.subscription_status} />
@@ -309,7 +309,7 @@ export default function AdminUsersClient() {
                 onChange={value => updateUser(user.user_id, 'role', value)}
               />
               <SelectField
-                label="初回確認"
+                label="利用開始"
                 value={user.onboarding_status}
                 disabled={savingId === user.user_id}
                 options={ONBOARDING_LABELS}
@@ -338,7 +338,7 @@ export default function AdminUsersClient() {
                 onClick={() => updateUser(user.user_id, 'onboarding_status', 'completed')}
                 className="btn-primary disabled:opacity-60"
               >
-                確認済みにする
+                利用開始済みにする
               </button>
             )}
 

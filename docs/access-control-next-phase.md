@@ -20,8 +20,8 @@
 
 | 状態 | 意味 | 現時点の扱い |
 | --- | --- | --- |
-| onboarding_status = pending | 初回確認前 | アプリ利用不可 |
-| onboarding_status = completed | 初回確認済み | 課金状態に応じて利用可 |
+| onboarding_status = pending | 未設定 | アプリ利用不可 |
+| onboarding_status = completed | 利用開始済み | 課金状態に応じて利用可 |
 | subscription_status = trialing | 試用中 | 読み書き可 |
 | subscription_status = active | 有効 | 読み書き可 |
 | subscription_status = past_due | 支払い確認が必要 | DB上は読み取りのみの土台。画面は状態確認へ誘導 |

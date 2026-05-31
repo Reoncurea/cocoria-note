@@ -110,7 +110,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
 
   const onboardingStatus = profile?.onboarding_status ?? requestedStatus
   if (onboardingStatus !== 'pending') {
-    return NextResponse.json({ error: '削除できるのは初回確認前の招待だけです' }, { status: 400 })
+    return NextResponse.json({ error: '削除できるのは未設定の招待だけです' }, { status: 400 })
   }
 
   const { error: deleteAuthError } = await adminSupabase.auth.admin.deleteUser(userId)

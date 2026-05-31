@@ -192,7 +192,7 @@ export default function SettingsPage() {
         <div className="card space-y-3">
           <p className="section-label">管理者メニュー</p>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            利用者の権限、初回確認、利用状態を管理します。
+            利用者の権限、利用開始、利用状態を管理します。
           </p>
           <Link href="/admin/users" className="btn-secondary block text-center">
             利用者管理を開く

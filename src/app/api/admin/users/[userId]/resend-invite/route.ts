@@ -107,7 +107,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   if (onboardingStatus !== 'pending') {
-    return NextResponse.json({ error: '再送できるのは初回確認前のユーザーだけです' }, { status: 400 })
+    return NextResponse.json({ error: '再送できるのは未設定のユーザーだけです' }, { status: 400 })
   }
 
   const { error: deleteAuthError } = await adminSupabase.auth.admin.deleteUser(userId)
