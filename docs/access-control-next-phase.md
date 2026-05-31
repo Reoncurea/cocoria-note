@@ -24,7 +24,7 @@
 | onboarding_status = completed | 利用開始済み | 課金状態に応じて利用可 |
 | subscription_status = trialing | 試用中 | 読み書き可 |
 | subscription_status = active | 有効 | 読み書き可 |
-| subscription_status = past_due | 支払い確認が必要 | DB上は読み取りのみの土台。画面は支払方法相談の連絡導線を表示 |
+| subscription_status = past_due | 支払い確認が必要 | DB上は読み取りのみの土台。画面はGmail作成リンクとコピー用の連絡内容を表示 |
 | subscription_status = canceled | 停止中 | DB上は読み取りのみの土台。画面は状態確認へ誘導 |
 
 ## DB側の考え方

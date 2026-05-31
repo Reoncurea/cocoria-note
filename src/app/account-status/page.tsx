@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
+import { ContactActions } from './ContactActions'
 import { SignOutButton } from './SignOutButton'
 
 export const dynamic = 'force-dynamic'
@@ -72,18 +73,6 @@ function statusMessage(profile: Profile | null): StatusMessage {
   }
 }
 
-function buildMailLink({
-  email,
-  subject,
-  body,
-}: {
-  email: string
-  subject: string
-  body: string
-}) {
-  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-}
-
 export default async function AccountStatusPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -104,16 +93,10 @@ export default async function AccountStatusPage() {
 
   const message = statusMessage(profile)
   const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'info@cocoria.net'
-  const billingMailLink = buildMailLink({
-    email: supportEmail,
-    subject: 'cocoria note 支払方法の確認・変更について',
-    body: `cocoria noteの支払方法について確認・変更を希望します。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`,
-  })
-  const contactMailLink = buildMailLink({
-    email: supportEmail,
-    subject: 'cocoria note 利用状態について',
-    body: `cocoria noteの利用状態について確認をお願いします。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`,
-  })
+  const billingSubject = 'cocoria note 支払方法の確認・変更について'
+  const billingBody = `cocoria noteの支払方法について確認・変更を希望します。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`
+  const contactSubject = 'cocoria note 利用状態について'
+  const contactBody = `cocoria noteの利用状態について確認をお願いします。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`
 
   return (
     <main
@@ -149,14 +132,20 @@ export default async function AccountStatusPage() {
 
         <div className="space-y-3">
           {message.actionType === 'billing' && (
-            <a href={billingMailLink} className="btn-primary block w-full">
-              支払方法について相談する
-            </a>
+            <ContactActions
+              body={billingBody}
+              email={supportEmail}
+              label="Gmailで相談メールを作成する"
+              subject={billingSubject}
+            />
           )}
           {message.actionType === 'contact' && (
-            <a href={contactMailLink} className="btn-primary block w-full">
-              管理者に連絡する
-            </a>
+            <ContactActions
+              body={contactBody}
+              email={supportEmail}
+              label="Gmailで連絡メールを作成する"
+              subject={contactSubject}
+            />
           )}
           {!profile?.accepted_at && (
             <Link href="/set-password" className="btn-primary block w-full">
