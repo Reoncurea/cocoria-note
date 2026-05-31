@@ -14,6 +14,9 @@ interface DashboardData {
   unsentReports: { id: string; customer_id: string; visit_date: string; customers: { name_kanji: string } | null }[]
   unpaidBilling: { id?: string; customer_id: string; customers: { name_kanji: string } | null; invoice_label?: string | null; visits?: { visit_date: string } | null }[]
   userEmail: string
+  subscriptionStatus: string | null
+  trialEndsAt: string | null
+  currentPeriodEnd: string | null
 }
 
 const MESSAGES = [
@@ -40,7 +43,12 @@ export default function DashboardPage() {
       const today = new Date().toISOString().split('T')[0]
       const { data: { user } } = await supabase.auth.getUser()
 
-      const [visitRes, unsentRes, unpaidRes, visitUnpaidRes] = await Promise.all([
+      const [profileRes, visitRes, unsentRes, unpaidRes, visitUnpaidRes] = await Promise.all([
+        supabase
+          .from('user_profiles')
+          .select('subscription_status, trial_ends_at, current_period_end')
+          .eq('user_id', user?.id ?? '')
+          .maybeSingle(),
         supabase
           .from('visits')
           .select('id, customer_id, start_time, customers(name_kanji)')
@@ -93,6 +101,9 @@ export default function DashboardPage() {
         unsentReports: normUnsent as DashboardData['unsentReports'],
         unpaidBilling: normUnpaid as DashboardData['unpaidBilling'],
         userEmail: user?.email ?? '',
+        subscriptionStatus: profileRes.data?.subscription_status ?? null,
+        trialEndsAt: profileRes.data?.trial_ends_at ?? null,
+        currentPeriodEnd: profileRes.data?.current_period_end ?? null,
       })
       setLoading(false)
     }
@@ -126,6 +137,16 @@ export default function DashboardPage() {
           {today} · {data?.userEmail}
         </p>
       </div>
+
+      {data?.subscriptionStatus === 'trialing' && data.trialEndsAt && (
+        <TrialNotice trialEndsAt={data.trialEndsAt} />
+      )}
+
+      {data?.subscriptionStatus === 'active' && data.currentPeriodEnd && (
+        <div className="card py-3 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          次回更新予定: {formatDate(data.currentPeriodEnd)}
+        </div>
+      )}
 
       {/* サマリーカード */}
       <div className="grid grid-cols-3 gap-3">
@@ -177,6 +198,29 @@ export default function DashboardPage() {
   )
 }
 
+function TrialNotice({ trialEndsAt }: { trialEndsAt: string }) {
+  const daysLeft = getDaysLeft(trialEndsAt)
+  const isNearEnd = daysLeft <= 7
+  const label = daysLeft > 0 ? `あと${daysLeft}日` : '本日まで'
+
+  return (
+    <div
+      className="card py-3 text-sm flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+      style={{
+        borderColor: isNearEnd ? '#fb923c' : 'var(--color-border)',
+        background: isNearEnd ? '#fff7ed' : 'var(--color-card)',
+      }}
+    >
+      <span style={{ color: 'var(--color-text)' }}>
+        無料試用期間: {formatDate(trialEndsAt)}まで
+      </span>
+      <span className="font-semibold" style={{ color: isNearEnd ? '#c2410c' : 'var(--color-primary-dark)' }}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
 function SummaryCard({ icon, label, count, warn }: { icon: string; label: string; count: number; warn?: boolean }) {
   return (
     <div className="card text-center py-4">
@@ -219,4 +263,16 @@ function ListItem({ name, sub, badge }: { name: string; sub?: string; badge?: st
       </div>
     </div>
   )
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('ja-JP')
+}
+
+function getDaysLeft(value: string) {
+  const end = new Date(value)
+  const today = new Date()
+  end.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return Math.ceil((end.getTime() - today.getTime()) / 86_400_000)
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
 import { ContactActions } from './ContactActions'
@@ -12,6 +13,7 @@ type Profile = {
   onboarding_status: string
   subscription_status: string
   accepted_at: string | null
+  trial_ends_at: string | null
 }
 
 type StatusMessage = {
@@ -23,7 +25,14 @@ type StatusMessage = {
 function canEnterApp(profile: Profile | null) {
   if (!profile) return false
   if (profile.onboarding_status !== 'completed') return false
+  if (isTrialExpired(profile)) return false
   return profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
+}
+
+function isTrialExpired(profile: Profile) {
+  if (profile.subscription_status !== 'trialing') return false
+  if (!profile.trial_ends_at) return false
+  return new Date(profile.trial_ends_at).getTime() < Date.now()
 }
 
 function statusMessage(profile: Profile | null): StatusMessage {
@@ -58,6 +67,14 @@ function statusMessage(profile: Profile | null): StatusMessage {
     }
   }
 
+  if (isTrialExpired(profile)) {
+    return {
+      title: '無料試用期間が終了しました',
+      body: '継続利用にはお支払い状況の確認が必要です。支払方法の確認や変更が必要な場合は、管理者へご連絡ください。',
+      actionType: 'billing',
+    }
+  }
+
   if (profile.subscription_status === 'canceled') {
     return {
       title: '現在このアカウントは停止中です',
@@ -81,11 +98,38 @@ export default async function AccountStatusPage() {
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
+  const { data: loadedProfile } = await supabase
     .from('user_profiles')
-    .select('role, onboarding_status, subscription_status, accepted_at')
+    .select('role, onboarding_status, subscription_status, accepted_at, trial_ends_at')
     .eq('user_id', user.id)
     .maybeSingle()
+
+  let profile = loadedProfile
+  if (profile && isTrialExpired(profile)) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+    if (serviceRoleKey && supabaseUrl) {
+      const adminSupabase = createAdminClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+
+      const { data: updatedProfile } = await adminSupabase
+        .from('user_profiles')
+        .update({
+          subscription_status: 'past_due',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .select('role, onboarding_status, subscription_status, accepted_at, trial_ends_at')
+        .maybeSingle()
+
+      profile = updatedProfile ?? { ...profile, subscription_status: 'past_due' }
+    }
+  }
 
   if (canEnterApp(profile)) {
     redirect('/dashboard')

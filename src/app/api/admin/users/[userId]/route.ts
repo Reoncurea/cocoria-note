@@ -16,6 +16,18 @@ const deleteSchema = z.object({
   onboarding_status: z.enum(['pending', 'completed']).optional(),
 }).strict()
 
+function addDays(date: Date, days: number) {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
+function addOneMonth(date: Date) {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + 1)
+  return result
+}
+
 async function requireAdmin() {
   const { user, supabase, error } = await requireAuth()
   if (error) return { user, supabase, error }
@@ -52,9 +64,23 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
   }
 
-  const update = {
+  const now = new Date()
+  const update: Record<string, string | null> = {
     ...result.data,
-    updated_at: new Date().toISOString(),
+    updated_at: now.toISOString(),
+  }
+
+  if (result.data.subscription_status === 'active') {
+    update.current_period_end = addOneMonth(now).toISOString()
+    update.grace_until = null
+  }
+
+  if (result.data.subscription_status === 'past_due') {
+    update.grace_until = addDays(now, 7).toISOString()
+  }
+
+  if (result.data.subscription_status === 'canceled') {
+    update.grace_until = null
   }
 
   const { data, error: updateError } = await supabase

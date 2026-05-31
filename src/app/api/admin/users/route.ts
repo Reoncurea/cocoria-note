@@ -32,6 +32,12 @@ function getAppOrigin(request: NextRequest) {
   return new URL(request.url).origin
 }
 
+function isTrialExpired(profile: UserProfileRow) {
+  if (profile.subscription_status !== 'trialing') return false
+  if (!profile.trial_ends_at) return false
+  return new Date(profile.trial_ends_at).getTime() < Date.now()
+}
+
 function getInviteErrorMessage(message: string | undefined, fallback: string) {
   const lower = message?.toLowerCase() ?? ''
 
@@ -150,17 +156,26 @@ export async function GET() {
 
   const syncedProfiles = profiles.map((profile) => {
     const authEmail = authEmailByUserId.get(profile.user_id)
-    if (!authEmail || authEmail === profile.email) return profile
-    return { ...profile, email: authEmail }
+    const email = authEmail ?? profile.email
+    const subscription_status = isTrialExpired(profile) ? 'past_due' : profile.subscription_status
+    if (email === profile.email && subscription_status === profile.subscription_status) return profile
+    return { ...profile, email, subscription_status }
   })
 
-  const profilesToSync = syncedProfiles.filter((profile, index) => profile.email !== profiles[index].email)
+  const profilesToSync = syncedProfiles.filter((profile, index) =>
+    profile.email !== profiles[index].email ||
+    profile.subscription_status !== profiles[index].subscription_status
+  )
   if (profilesToSync.length > 0) {
     await Promise.all(
       profilesToSync.map((profile) =>
         adminSupabase
           .from('user_profiles')
-          .update({ email: profile.email, updated_at: new Date().toISOString() })
+          .update({
+            email: profile.email,
+            subscription_status: profile.subscription_status,
+            updated_at: new Date().toISOString(),
+          })
           .eq('user_id', profile.user_id)
       )
     )

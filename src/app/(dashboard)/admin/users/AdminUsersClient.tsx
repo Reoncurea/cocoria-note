@@ -33,6 +33,16 @@ function needsAdminReview(user: UserProfile) {
   return user.onboarding_status === 'pending' && Boolean(user.accepted_at)
 }
 
+function needsPaymentReview(user: UserProfile) {
+  return user.subscription_status === 'past_due'
+}
+
+function isTrialEndingSoon(user: UserProfile) {
+  if (user.subscription_status !== 'trialing') return false
+  const daysLeft = getDaysLeft(user.trial_ends_at)
+  return daysLeft !== null && daysLeft <= 7
+}
+
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -214,6 +224,18 @@ export default function AdminUsersClient() {
         </div>
       )}
 
+      {users.some(needsPaymentReview) && (
+        <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: '#fef2f2', color: '#dc2626' }}>
+          支払い確認が必要なユーザーがいます。入金や継続意思を確認して、問題なければ「有効」に変更してください。
+        </div>
+      )}
+
+      {users.some(isTrialEndingSoon) && (
+        <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: '#fffbeb', color: '#92400e' }}>
+          無料試用期間の終了が近いユーザーがいます。継続確認の準備をしてください。
+        </div>
+      )}
+
       <form onSubmit={inviteUser} className="card space-y-4">
         <div>
           <p className="section-label">新規招待</p>
@@ -279,7 +301,7 @@ export default function AdminUsersClient() {
           <article
             key={user.user_id}
             className="card space-y-4"
-            style={needsAdminReview(user) ? { borderColor: '#fb923c', boxShadow: '0 0 0 2px rgba(251, 146, 60, 0.12)' } : undefined}
+            style={getCardStyle(user)}
           >
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -294,6 +316,11 @@ export default function AdminUsersClient() {
                 {needsAdminReview(user) && (
                   <span className="badge self-start" style={{ background: '#ffedd5', color: '#c2410c' }}>
                     要確認
+                  </span>
+                )}
+                {isTrialEndingSoon(user) && (
+                  <span className="badge self-start" style={{ background: '#fef3c7', color: '#92400e' }}>
+                    試用終了間近
                   </span>
                 )}
                 <StatusBadge status={user.subscription_status} />
@@ -327,7 +354,7 @@ export default function AdminUsersClient() {
             <div className="grid gap-1 text-xs sm:grid-cols-2" style={{ color: 'var(--color-text-muted)' }}>
               <p>招待: {formatDate(user.invited_at)}</p>
               <p>初回設定: {formatDate(user.accepted_at)}</p>
-              <p>試用終了: {formatDate(user.trial_ends_at)}</p>
+              <p>試用終了: {formatDate(user.trial_ends_at)}{formatTrialDays(user)}</p>
               <p>次回更新: {formatDate(user.current_period_end)}</p>
               <p>猶予期限: {formatDate(user.grace_until)}</p>
               <p>作成: {formatDate(user.created_at)}</p>
@@ -425,10 +452,45 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleDateString('ja-JP')
 }
 
+function getDaysLeft(value: string | null) {
+  if (!value) return null
+  const end = new Date(value)
+  const today = new Date()
+  end.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return Math.ceil((end.getTime() - today.getTime()) / 86_400_000)
+}
+
+function formatTrialDays(user: UserProfile) {
+  if (user.subscription_status !== 'trialing') return ''
+  const daysLeft = getDaysLeft(user.trial_ends_at)
+  if (daysLeft === null) return ''
+  if (daysLeft < 0) return '（期限切れ）'
+  if (daysLeft === 0) return '（本日まで）'
+  return `（あと${daysLeft}日）`
+}
+
+function getCardStyle(user: UserProfile) {
+  if (needsAdminReview(user)) {
+    return { borderColor: '#fb923c', boxShadow: '0 0 0 2px rgba(251, 146, 60, 0.12)' }
+  }
+  if (needsPaymentReview(user)) {
+    return { borderColor: '#f87171', boxShadow: '0 0 0 2px rgba(248, 113, 113, 0.12)' }
+  }
+  if (isTrialEndingSoon(user)) {
+    return { borderColor: '#fbbf24', boxShadow: '0 0 0 2px rgba(251, 191, 36, 0.12)' }
+  }
+  return undefined
+}
+
 function sortUsers(users: UserProfile[]) {
   return [...users].sort((a, b) => {
     if (needsAdminReview(a) && !needsAdminReview(b)) return -1
     if (!needsAdminReview(a) && needsAdminReview(b)) return 1
+    if (needsPaymentReview(a) && !needsPaymentReview(b)) return -1
+    if (!needsPaymentReview(a) && needsPaymentReview(b)) return 1
+    if (isTrialEndingSoon(a) && !isTrialEndingSoon(b)) return -1
+    if (!isTrialEndingSoon(a) && isTrialEndingSoon(b)) return 1
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 }
