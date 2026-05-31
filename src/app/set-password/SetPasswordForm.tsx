@@ -47,8 +47,8 @@ export function SetPasswordForm() {
       return
     }
 
-    setMessage('パスワードを設定しました。利用状態を確認します。')
-    router.push('/account-status')
+    setMessage('パスワードを設定しました。アプリを開きます。')
+    router.push('/dashboard')
     router.refresh()
   }
 

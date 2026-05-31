@@ -25,16 +25,19 @@ export async function POST() {
     .from('user_profiles')
     .update({
       accepted_at: now,
+      onboarding_status: 'completed',
       updated_at: now,
     })
     .eq('user_id', user!.id)
-    .is('accepted_at', null)
-    .select('user_id, accepted_at')
+    .select('user_id, accepted_at, onboarding_status')
     .maybeSingle()
 
   if (updateError) {
     return NextResponse.json({ error: 'Account setup could not be recorded' }, { status: 500 })
   }
 
-  return NextResponse.json({ accepted_at: data?.accepted_at ?? now })
+  return NextResponse.json({
+    accepted_at: data?.accepted_at ?? now,
+    onboarding_status: data?.onboarding_status ?? 'completed',
+  })
 }
