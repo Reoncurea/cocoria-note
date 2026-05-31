@@ -18,7 +18,7 @@ const ONBOARDING_LABELS = {
 const SUBSCRIPTION_LABELS = {
   trialing: '試用中',
   active: '有効',
-  past_due: '確認必要',
+  past_due: '支払い確認',
   canceled: '停止中',
 } as const
 
@@ -327,6 +327,9 @@ export default function AdminUsersClient() {
             <div className="grid gap-1 text-xs sm:grid-cols-2" style={{ color: 'var(--color-text-muted)' }}>
               <p>招待: {formatDate(user.invited_at)}</p>
               <p>初回設定: {formatDate(user.accepted_at)}</p>
+              <p>試用終了: {formatDate(user.trial_ends_at)}</p>
+              <p>次回更新: {formatDate(user.current_period_end)}</p>
+              <p>猶予期限: {formatDate(user.grace_until)}</p>
               <p>作成: {formatDate(user.created_at)}</p>
               <p>更新: {formatDate(user.updated_at)}</p>
             </div>

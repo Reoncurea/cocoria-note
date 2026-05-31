@@ -24,7 +24,7 @@
 | onboarding_status = completed | 利用開始済み | 課金状態に応じて利用可 |
 | subscription_status = trialing | 試用中 | 読み書き可 |
 | subscription_status = active | 有効 | 読み書き可 |
-| subscription_status = past_due | 支払い確認が必要 | DB上は読み取りのみの土台。画面はGmail作成リンクとコピー用の連絡内容を表示 |
+| subscription_status = past_due | 支払い確認 | DB上は読み取りのみの土台。画面はGmail作成リンクとコピー用の連絡内容を表示 |
 | subscription_status = canceled | 停止中 | DB上は読み取りのみの土台。画面は状態確認へ誘導 |
 
 ## DB側の考え方
@@ -54,6 +54,9 @@ APIへの直接アクセスは、同じ条件で `403` を返す。
 2. `20260530_add_profile_based_access_control.sql` と `20260530_limit_admin_data_visibility.sql` を本番に適用する。
 3. Vercelに `SUPABASE_SERVICE_ROLE_KEY` を追加し、管理画面から招待メールを送れるようにする。
 4. `subscription_status` を手動更新する運用から始める。
+   - サブスク希望者が出るまではStripeを実装しない。
+   - 管理画面で `試用中 / 有効 / 支払い確認 / 停止中` を手動で切り替える。
+   - `trial_ends_at / current_period_end / grace_until` は、将来の課金管理で使う日付として表示しておく。
 5. Stripe導入前に `subscriptions` テーブルを追加する。
 6. supporterを入れる前に `customer_assignments` を追加する。
 
