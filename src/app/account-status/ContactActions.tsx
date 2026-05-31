@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 type ContactActionsProps = {
   body: string
   email: string
@@ -29,9 +31,12 @@ function buildGmailLink({
 
 export function ContactActions({ body, email, label, subject }: ContactActionsProps) {
   const gmailLink = buildGmailLink({ body, email, subject })
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null)
 
-  async function copyText(text: string) {
+  async function copyText(label: string, text: string) {
     await navigator.clipboard.writeText(text)
+    setCopiedLabel(label)
+    window.setTimeout(() => setCopiedLabel(null), 2000)
   }
 
   return (
@@ -40,6 +45,16 @@ export function ContactActions({ body, email, label, subject }: ContactActionsPr
         {label}
       </a>
 
+      <p className="text-xs leading-relaxed text-center" style={{ color: 'var(--color-text-muted)' }}>
+        Gmailを使っていない場合や、メール画面が開かない場合は、下の送信先・件名・本文をコピーして、ご利用のメールや連絡ツールに貼り付けてください。
+      </p>
+
+      {copiedLabel && (
+        <div className="px-3 py-2 rounded-lg text-xs text-center" style={{ background: '#ecfdf5', color: '#047857' }}>
+          {copiedLabel}をコピーしました
+        </div>
+      )}
+
       <div className="rounded-xl p-3 text-xs space-y-2" style={{ background: 'var(--color-surface)' }}>
         <div>
           <p className="font-semibold mb-1" style={{ color: 'var(--color-text)' }}>送信先</p>
@@ -47,7 +62,7 @@ export function ContactActions({ body, email, label, subject }: ContactActionsPr
             <p className="break-all flex-1" style={{ color: 'var(--color-text-muted)' }}>{email}</p>
             <button
               type="button"
-              onClick={() => copyText(email)}
+              onClick={() => copyText('送信先', email)}
               className="px-3 py-1 rounded-lg text-xs font-semibold"
               style={{ background: '#fff', color: 'var(--color-primary-dark)' }}
             >
@@ -62,7 +77,7 @@ export function ContactActions({ body, email, label, subject }: ContactActionsPr
             <p className="break-all flex-1" style={{ color: 'var(--color-text-muted)' }}>{subject}</p>
             <button
               type="button"
-              onClick={() => copyText(subject)}
+              onClick={() => copyText('件名', subject)}
               className="px-3 py-1 rounded-lg text-xs font-semibold"
               style={{ background: '#fff', color: 'var(--color-primary-dark)' }}
             >
@@ -78,7 +93,7 @@ export function ContactActions({ body, email, label, subject }: ContactActionsPr
           </p>
           <button
             type="button"
-            onClick={() => copyText(body)}
+            onClick={() => copyText('本文', body)}
             className="mt-2 px-3 py-1 rounded-lg text-xs font-semibold"
             style={{ background: '#fff', color: 'var(--color-primary-dark)' }}
           >
