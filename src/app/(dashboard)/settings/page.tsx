@@ -18,6 +18,16 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [csvLoading, setCsvLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [currentEmail, setCurrentEmail] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [emailUpdating, setEmailUpdating] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [emailMessage, setEmailMessage] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordUpdating, setPasswordUpdating] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let ignore = false
@@ -32,6 +42,11 @@ export default function SettingsPage() {
       ])
 
       if (user) {
+        if (!ignore) {
+          setCurrentEmail(user.email ?? '')
+          setNewEmail(user.email ?? '')
+        }
+
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('role, onboarding_status, subscription_status')
@@ -109,6 +124,64 @@ export default function SettingsPage() {
     a.click()
     URL.revokeObjectURL(url)
     setCsvLoading(false)
+  }
+
+  async function updateEmail(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const email = newEmail.trim()
+    setEmailError(null)
+    setEmailMessage(null)
+
+    if (!email) {
+      setEmailError('新しいメールアドレスを入力してください。')
+      return
+    }
+
+    if (email === currentEmail) {
+      setEmailError('現在のメールアドレスと同じです。')
+      return
+    }
+
+    setEmailUpdating(true)
+    const emailRedirectTo = `${window.location.origin}/auth/callback?next=/settings`
+    const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo })
+    setEmailUpdating(false)
+
+    if (error) {
+      setEmailError('メールアドレス変更の確認メールを送信できませんでした。入力内容を確認してください。')
+      return
+    }
+
+    setEmailMessage('確認メールを送信しました。メール内のリンクを開くと変更が完了します。')
+  }
+
+  async function updatePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPasswordError(null)
+    setPasswordMessage(null)
+
+    if (newPassword.length < 8) {
+      setPasswordError('パスワードは8文字以上で設定してください。')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('確認用パスワードが一致していません。')
+      return
+    }
+
+    setPasswordUpdating(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setPasswordUpdating(false)
+
+    if (error) {
+      setPasswordError('パスワードを変更できませんでした。時間をおいて再度お試しください。')
+      return
+    }
+
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordMessage('パスワードを変更しました。次回から新しいパスワードでログインできます。')
   }
 
   async function handleLogout() {
@@ -202,9 +275,90 @@ export default function SettingsPage() {
 
       <div className="card">
         <p className="section-label">アカウント</p>
+        <div className="mt-3 rounded-xl p-3 text-sm" style={{ background: 'var(--color-surface)' }}>
+          <p style={{ color: 'var(--color-text-muted)' }}>現在のメールアドレス</p>
+          <p className="font-semibold mt-1" style={{ color: 'var(--color-text)' }}>{currentEmail || '-'}</p>
+        </div>
+
+        <form onSubmit={updateEmail} className="mt-5 space-y-3">
+          <div>
+            <label className="form-label">メールアドレス変更</label>
+            <input
+              type="email"
+              className="input"
+              value={newEmail}
+              onChange={(event) => setNewEmail(event.target.value)}
+              placeholder="new@example.com"
+              autoComplete="email"
+              required
+            />
+          </div>
+          {emailError && (
+            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
+              {emailError}
+            </div>
+          )}
+          {emailMessage && (
+            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+              {emailMessage}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={emailUpdating || !newEmail.trim()}
+            className="btn-secondary w-full disabled:opacity-60">
+            {emailUpdating ? '送信中...' : '確認メールを送る'}
+          </button>
+        </form>
+
+        <form onSubmit={updatePassword} className="mt-6 space-y-3">
+          <div>
+            <label className="form-label">新しいパスワード</label>
+            <input
+              type="password"
+              className="input"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="8文字以上"
+              minLength={8}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+          <div>
+            <label className="form-label">確認用パスワード</label>
+            <input
+              type="password"
+              className="input"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="もう一度入力"
+              minLength={8}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+          {passwordError && (
+            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
+              {passwordError}
+            </div>
+          )}
+          {passwordMessage && (
+            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+              {passwordMessage}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={passwordUpdating || !newPassword || !confirmPassword}
+            className="btn-secondary w-full disabled:opacity-60">
+            {passwordUpdating ? '変更中...' : 'パスワードを変更する'}
+          </button>
+        </form>
+
         <button
           onClick={handleLogout}
-          className="w-full mt-3 py-3 rounded-xl text-sm font-semibold transition-opacity"
+          className="w-full mt-6 py-3 rounded-xl text-sm font-semibold transition-opacity"
           style={{ background: '#fef2f2', color: '#dc2626' }}>
           ログアウト
         </button>
