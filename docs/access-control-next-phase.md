@@ -56,7 +56,8 @@ APIへの直接アクセスは、同じ条件で `403` を返す。
 4. `subscription_status` を手動更新する運用から始める。
    - サブスク希望者が出るまではStripeを実装しない。
    - 管理画面で `試用中 / 有効 / 支払い確認 / 停止中` を手動で切り替える。
-   - `trial_ends_at / current_period_end / grace_until` は、将来の課金管理で使う日付として表示しておく。
+   - パスワード設定が完了した日を利用開始日とし、`trial_ends_at` に1か月後を自動設定する。
+   - `current_period_end / grace_until` は、将来の課金管理で使う日付として表示しておく。
 5. Stripe導入前に `subscriptions` テーブルを追加する。
 6. supporterを入れる前に `customer_assignments` を追加する。
 

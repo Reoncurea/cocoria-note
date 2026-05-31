@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { requireAuth } from '@/lib/supabase/api-helpers'
 
+function addOneMonth(date: Date) {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + 1)
+  return result
+}
+
 export async function POST() {
   const { user, error } = await requireAuth()
   if (error) return error
@@ -20,16 +26,30 @@ export async function POST() {
     },
   })
 
-  const now = new Date().toISOString()
+  const { data: currentProfile, error: fetchError } = await adminSupabase
+    .from('user_profiles')
+    .select('accepted_at, trial_ends_at')
+    .eq('user_id', user!.id)
+    .maybeSingle()
+
+  if (fetchError) {
+    return NextResponse.json({ error: 'Account setup could not be loaded' }, { status: 500 })
+  }
+
+  const now = new Date()
+  const acceptedAt = currentProfile?.accepted_at ?? now.toISOString()
+  const trialEndsAt = currentProfile?.trial_ends_at ?? addOneMonth(new Date(acceptedAt)).toISOString()
+
   const { data, error: updateError } = await adminSupabase
     .from('user_profiles')
     .update({
-      accepted_at: now,
+      accepted_at: acceptedAt,
       onboarding_status: 'completed',
-      updated_at: now,
+      trial_ends_at: trialEndsAt,
+      updated_at: now.toISOString(),
     })
     .eq('user_id', user!.id)
-    .select('user_id, accepted_at, onboarding_status')
+    .select('user_id, accepted_at, onboarding_status, trial_ends_at')
     .maybeSingle()
 
   if (updateError) {
@@ -37,7 +57,8 @@ export async function POST() {
   }
 
   return NextResponse.json({
-    accepted_at: data?.accepted_at ?? now,
+    accepted_at: data?.accepted_at ?? acceptedAt,
     onboarding_status: data?.onboarding_status ?? 'completed',
+    trial_ends_at: data?.trial_ends_at ?? trialEndsAt,
   })
 }
