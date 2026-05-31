@@ -10,6 +10,7 @@ type Profile = {
   role: string
   onboarding_status: string
   subscription_status: string
+  accepted_at: string | null
 }
 
 function canEnterApp(profile: Profile | null) {
@@ -27,6 +28,13 @@ function statusMessage(profile: Profile | null) {
   }
 
   if (profile.onboarding_status !== 'completed') {
+    if (profile.accepted_at) {
+      return {
+        title: '管理者の確認待ちです',
+        body: 'パスワード設定は完了しています。管理者が確認済みに変更すると、cocoria noteを利用できます。',
+      }
+    }
+
     return {
       title: '初回確認がまだ完了していません',
       body: 'パスワード設定後、管理者による初回確認が完了すると利用を開始できます。',
@@ -63,7 +71,7 @@ export default async function AccountStatusPage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role, onboarding_status, subscription_status')
+    .select('role, onboarding_status, subscription_status, accepted_at')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -103,9 +111,11 @@ export default async function AccountStatusPage() {
         </div>
 
         <div className="space-y-3">
-          <Link href="/set-password" className="btn-primary block w-full">
-            パスワードを設定する
-          </Link>
+          {!profile?.accepted_at && (
+            <Link href="/set-password" className="btn-primary block w-full">
+              パスワードを設定する
+            </Link>
+          )}
           <SignOutButton />
           <div className="flex items-center justify-center gap-4 text-xs">
             <Link href="/privacy" className="underline" style={{ color: 'var(--color-primary-dark)' }}>

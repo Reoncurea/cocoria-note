@@ -37,6 +37,16 @@ export function SetPasswordForm() {
       return
     }
 
+    const acceptResponse = await fetch('/api/account/accept-invite', {
+      method: 'POST',
+    })
+
+    if (!acceptResponse.ok) {
+      setError('パスワードは設定されましたが、初回設定完了の記録に失敗しました。管理者に連絡してください。')
+      setLoading(false)
+      return
+    }
+
     setMessage('パスワードを設定しました。利用状態を確認します。')
     router.push('/account-status')
     router.refresh()

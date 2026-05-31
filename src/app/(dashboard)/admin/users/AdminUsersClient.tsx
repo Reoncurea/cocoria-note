@@ -29,6 +29,10 @@ function getErrorText(body: { error?: unknown } | null, fallback: string) {
   return fallback
 }
 
+function needsAdminReview(user: UserProfile) {
+  return user.onboarding_status === 'pending' && Boolean(user.accepted_at)
+}
+
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -56,7 +60,7 @@ export default function AdminUsersClient() {
 
       const data = await response.json() as UserProfile[]
       if (!ignore) {
-        setUsers(data)
+        setUsers(sortUsers(data))
         setLoading(false)
       }
     }
@@ -84,7 +88,7 @@ export default function AdminUsersClient() {
     }
 
     const updated = await response.json() as UserProfile
-    setUsers(prev => prev.map(user => user.user_id === updated.user_id ? updated : user))
+    setUsers(prev => sortUsers(prev.map(user => user.user_id === updated.user_id ? updated : user)))
     setMessage('更新しました')
     setSavingId(null)
   }
@@ -117,7 +121,7 @@ export default function AdminUsersClient() {
     }
 
     const invited = await response.json() as UserProfile
-    setUsers(prev => [invited, ...prev.filter(user => user.user_id !== invited.user_id)])
+    setUsers(prev => sortUsers([invited, ...prev.filter(user => user.user_id !== invited.user_id)]))
     setInviteEmail('')
     setInviteRole('user')
     setInviteStatus('trialing')
@@ -154,7 +158,7 @@ export default function AdminUsersClient() {
     }
 
     const resent = await response.json() as UserProfile
-    setUsers(prev => [resent, ...prev.filter(item => item.user_id !== user.user_id && item.user_id !== resent.user_id)])
+    setUsers(prev => sortUsers([resent, ...prev.filter(item => item.user_id !== user.user_id && item.user_id !== resent.user_id)]))
     setMessage('招待メールを再送しました')
     setActionId(null)
   }
@@ -204,6 +208,12 @@ export default function AdminUsersClient() {
 
   return (
     <div className="space-y-4">
+      {users.some(needsAdminReview) && (
+        <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: '#fff7ed', color: '#c2410c' }}>
+          初回設定が完了し、管理者確認待ちのユーザーがいます。内容を確認して「初回確認」を「確認済み」にしてください。
+        </div>
+      )}
+
       <form onSubmit={inviteUser} className="card space-y-4">
         <div>
           <p className="section-label">新規招待</p>
@@ -266,7 +276,11 @@ export default function AdminUsersClient() {
 
       <div className="grid gap-3">
         {users.map(user => (
-          <article key={user.user_id} className="card space-y-4">
+          <article
+            key={user.user_id}
+            className="card space-y-4"
+            style={needsAdminReview(user) ? { borderColor: '#fb923c', boxShadow: '0 0 0 2px rgba(251, 146, 60, 0.12)' } : undefined}
+          >
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>
@@ -276,7 +290,14 @@ export default function AdminUsersClient() {
                   {user.user_id}
                 </p>
               </div>
-              <StatusBadge status={user.subscription_status} />
+              <div className="flex flex-wrap gap-2">
+                {needsAdminReview(user) && (
+                  <span className="badge self-start" style={{ background: '#ffedd5', color: '#c2410c' }}>
+                    確認待ち
+                  </span>
+                )}
+                <StatusBadge status={user.subscription_status} />
+              </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
@@ -305,12 +326,23 @@ export default function AdminUsersClient() {
 
             <div className="grid gap-1 text-xs sm:grid-cols-2" style={{ color: 'var(--color-text-muted)' }}>
               <p>招待: {formatDate(user.invited_at)}</p>
-              <p>初回完了: {formatDate(user.accepted_at)}</p>
+              <p>初回設定: {formatDate(user.accepted_at)}</p>
               <p>作成: {formatDate(user.created_at)}</p>
               <p>更新: {formatDate(user.updated_at)}</p>
             </div>
 
-            {user.onboarding_status === 'pending' && (
+            {needsAdminReview(user) && (
+              <button
+                type="button"
+                disabled={savingId === user.user_id}
+                onClick={() => updateUser(user.user_id, 'onboarding_status', 'completed')}
+                className="btn-primary disabled:opacity-60"
+              >
+                確認済みにする
+              </button>
+            )}
+
+            {user.onboarding_status === 'pending' && !user.accepted_at && (
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
@@ -388,4 +420,12 @@ function StatusBadge({ status }: { status: UserProfile['subscription_status'] })
 function formatDate(value: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('ja-JP')
+}
+
+function sortUsers(users: UserProfile[]) {
+  return [...users].sort((a, b) => {
+    if (needsAdminReview(a) && !needsAdminReview(b)) return -1
+    if (!needsAdminReview(a) && needsAdminReview(b)) return 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
 }
