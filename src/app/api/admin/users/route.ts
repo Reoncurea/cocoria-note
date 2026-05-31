@@ -10,6 +10,22 @@ const inviteSchema = z.object({
   subscription_status: z.enum(['trialing', 'active']).default('trialing'),
 }).strict()
 
+type UserProfileRow = {
+  user_id: string
+  email: string | null
+  display_name: string | null
+  role: string
+  onboarding_status: string
+  subscription_status: string
+  invited_at: string | null
+  accepted_at: string | null
+  trial_ends_at: string | null
+  current_period_end: string | null
+  grace_until: string | null
+  created_at: string
+  updated_at: string
+}
+
 function getAppOrigin(request: NextRequest) {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN
   if (configuredOrigin) return configuredOrigin.replace(/\/$/, '')
@@ -101,7 +117,56 @@ export async function GET() {
     return NextResponse.json({ error: 'User list could not be loaded' }, { status: 500 })
   }
 
-  return NextResponse.json(data ?? [])
+  const profiles = (data ?? []) as UserProfileRow[]
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  if (!serviceRoleKey || !supabaseUrl || profiles.length === 0) {
+    return NextResponse.json(profiles)
+  }
+
+  const adminSupabase = createAdminClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  const authEmailByUserId = new Map<string, string>()
+  for (let page = 1; page <= 10; page += 1) {
+    const { data: usersData, error: listUsersError } = await adminSupabase.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    })
+
+    if (listUsersError) break
+
+    usersData.users.forEach((authUser) => {
+      if (authUser.email) authEmailByUserId.set(authUser.id, authUser.email)
+    })
+
+    if (usersData.users.length < 100) break
+  }
+
+  const syncedProfiles = profiles.map((profile) => {
+    const authEmail = authEmailByUserId.get(profile.user_id)
+    if (!authEmail || authEmail === profile.email) return profile
+    return { ...profile, email: authEmail }
+  })
+
+  const profilesToSync = syncedProfiles.filter((profile, index) => profile.email !== profiles[index].email)
+  if (profilesToSync.length > 0) {
+    await Promise.all(
+      profilesToSync.map((profile) =>
+        adminSupabase
+          .from('user_profiles')
+          .update({ email: profile.email, updated_at: new Date().toISOString() })
+          .eq('user_id', profile.user_id)
+      )
+    )
+  }
+
+  return NextResponse.json(syncedProfiles)
 }
 
 export async function POST(request: NextRequest) {
