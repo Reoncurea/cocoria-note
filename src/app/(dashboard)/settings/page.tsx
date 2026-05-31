@@ -8,6 +8,28 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { SupportTag } from '@/types/database'
 
+function getEmailChangeErrorMessage(message: string) {
+  const lowerMessage = message.toLowerCase()
+
+  if (lowerMessage.includes('already') || lowerMessage.includes('registered')) {
+    return 'このメールアドレスはすでに別のアカウントで使われています。別のメールアドレスを入力してください。'
+  }
+
+  if (lowerMessage.includes('rate') || lowerMessage.includes('seconds') || lowerMessage.includes('minute')) {
+    return '短時間に何度も送信されています。少し時間をおいて再度お試しください。'
+  }
+
+  if (lowerMessage.includes('redirect')) {
+    return 'メール変更後に戻るURLの設定に問題があります。管理者に連絡してください。'
+  }
+
+  if (lowerMessage.includes('invalid')) {
+    return 'メールアドレスの形式を確認してください。'
+  }
+
+  return `メールアドレス変更の確認メールを送信できませんでした。理由: ${message}`
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -49,9 +71,16 @@ export default function SettingsPage() {
 
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('role, onboarding_status, subscription_status')
+          .select('role, onboarding_status, subscription_status, email')
           .eq('user_id', user.id)
           .maybeSingle()
+
+        if (profile?.email !== user.email && user.email) {
+          await supabase
+            .from('user_profiles')
+            .update({ email: user.email })
+            .eq('user_id', user.id)
+        }
 
         if (!ignore) {
           setIsAdmin(
@@ -148,7 +177,7 @@ export default function SettingsPage() {
     setEmailUpdating(false)
 
     if (error) {
-      setEmailError('メールアドレス変更の確認メールを送信できませんでした。入力内容を確認してください。')
+      setEmailError(getEmailChangeErrorMessage(error.message))
       return
     }
 
