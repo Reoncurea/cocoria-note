@@ -13,17 +13,24 @@ type Profile = {
   accepted_at: string | null
 }
 
+type StatusMessage = {
+  title: string
+  body: string
+  actionType?: 'billing' | 'contact'
+}
+
 function canEnterApp(profile: Profile | null) {
   if (!profile) return false
   if (profile.onboarding_status !== 'completed') return false
   return profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
 }
 
-function statusMessage(profile: Profile | null) {
+function statusMessage(profile: Profile | null): StatusMessage {
   if (!profile) {
     return {
       title: '利用設定を確認中です',
       body: 'アカウントは作成されていますが、利用者プロフィールがまだ準備できていません。管理者に確認してください。',
+      actionType: 'contact',
     }
   }
 
@@ -32,6 +39,7 @@ function statusMessage(profile: Profile | null) {
       return {
         title: '利用開始設定を確認中です',
         body: 'パスワード設定は完了しています。利用開始状態の反映に時間がかかっている可能性があります。時間をおいて再度お試しください。',
+        actionType: 'contact',
       }
     }
 
@@ -44,7 +52,8 @@ function statusMessage(profile: Profile | null) {
   if (profile.subscription_status === 'past_due') {
     return {
       title: 'お支払い状況の確認が必要です',
-      body: '継続利用の前に、お支払い状況の確認が必要です。管理者に連絡してください。',
+      body: '継続利用の前に、お支払い状況の確認が必要です。支払方法の変更や確認が必要な場合は、管理者へご連絡ください。',
+      actionType: 'billing',
     }
   }
 
@@ -52,13 +61,27 @@ function statusMessage(profile: Profile | null) {
     return {
       title: '現在このアカウントは停止中です',
       body: '再開を希望する場合は、管理者に連絡してください。',
+      actionType: 'contact',
     }
   }
 
   return {
     title: '利用状態を確認してください',
     body: '現在のアカウント状態ではアプリを利用できません。管理者に確認してください。',
+    actionType: 'contact',
   }
+}
+
+function buildMailLink({
+  email,
+  subject,
+  body,
+}: {
+  email: string
+  subject: string
+  body: string
+}) {
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
 export default async function AccountStatusPage() {
@@ -80,6 +103,17 @@ export default async function AccountStatusPage() {
   }
 
   const message = statusMessage(profile)
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'info@cocoria.net'
+  const billingMailLink = buildMailLink({
+    email: supportEmail,
+    subject: 'cocoria note 支払方法の確認・変更について',
+    body: `cocoria noteの支払方法について確認・変更を希望します。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`,
+  })
+  const contactMailLink = buildMailLink({
+    email: supportEmail,
+    subject: 'cocoria note 利用状態について',
+    body: `cocoria noteの利用状態について確認をお願いします。\n\nログイン中のメールアドレス: ${user.email ?? ''}\n`,
+  })
 
   return (
     <main
@@ -108,9 +142,22 @@ export default async function AccountStatusPage() {
           <p style={{ color: 'var(--color-text-muted)' }}>
             状態: {profile?.onboarding_status ?? '未設定'} / {profile?.subscription_status ?? '未設定'}
           </p>
+          <p style={{ color: 'var(--color-text-muted)' }}>
+            連絡先: {supportEmail}
+          </p>
         </div>
 
         <div className="space-y-3">
+          {message.actionType === 'billing' && (
+            <a href={billingMailLink} className="btn-primary block w-full">
+              支払方法について相談する
+            </a>
+          )}
+          {message.actionType === 'contact' && (
+            <a href={contactMailLink} className="btn-primary block w-full">
+              管理者に連絡する
+            </a>
+          )}
           {!profile?.accepted_at && (
             <Link href="/set-password" className="btn-primary block w-full">
               パスワードを設定する
