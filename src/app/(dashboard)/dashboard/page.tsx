@@ -15,6 +15,7 @@ interface DashboardData {
   unpaidBilling: { id?: string; customer_id: string; customers: { name_kanji: string } | null; invoice_label?: string | null; visits?: { visit_date: string } | null }[]
   userEmail: string
   subscriptionStatus: string | null
+  acceptedAt: string | null
   trialEndsAt: string | null
   currentPeriodEnd: string | null
 }
@@ -46,7 +47,7 @@ export default function DashboardPage() {
       const [profileRes, visitRes, unsentRes, unpaidRes, visitUnpaidRes] = await Promise.all([
         supabase
           .from('user_profiles')
-          .select('subscription_status, trial_ends_at, current_period_end')
+          .select('subscription_status, accepted_at, trial_ends_at, current_period_end')
           .eq('user_id', user?.id ?? '')
           .maybeSingle(),
         supabase
@@ -95,6 +96,8 @@ export default function DashboardPage() {
         ...normVisitUnpaid,
         ...normLegacyUnpaid.filter(v => !visitBillingCustomerIds.has(v.customer_id)),
       ]
+      const acceptedAt = profileRes.data?.accepted_at ?? null
+      const trialEndsAt = profileRes.data?.trial_ends_at ?? getFallbackTrialEndsAt(acceptedAt)
 
       setData({
         todayVisits: normVisits as DashboardData['todayVisits'],
@@ -102,7 +105,8 @@ export default function DashboardPage() {
         unpaidBilling: normUnpaid as DashboardData['unpaidBilling'],
         userEmail: user?.email ?? '',
         subscriptionStatus: profileRes.data?.subscription_status ?? null,
-        trialEndsAt: profileRes.data?.trial_ends_at ?? null,
+        acceptedAt,
+        trialEndsAt,
         currentPeriodEnd: profileRes.data?.current_period_end ?? null,
       })
       setLoading(false)
@@ -267,6 +271,13 @@ function ListItem({ name, sub, badge }: { name: string; sub?: string; badge?: st
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('ja-JP')
+}
+
+function getFallbackTrialEndsAt(acceptedAt: string | null) {
+  if (!acceptedAt) return null
+  const result = new Date(acceptedAt)
+  result.setMonth(result.getMonth() + 1)
+  return result.toISOString()
 }
 
 function getDaysLeft(value: string) {

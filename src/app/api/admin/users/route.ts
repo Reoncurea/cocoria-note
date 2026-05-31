@@ -32,10 +32,23 @@ function getAppOrigin(request: NextRequest) {
   return new URL(request.url).origin
 }
 
+function addOneMonth(date: Date) {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + 1)
+  return result
+}
+
+function getTrialEndsAt(profile: UserProfileRow) {
+  if (profile.trial_ends_at) return profile.trial_ends_at
+  if (profile.accepted_at) return addOneMonth(new Date(profile.accepted_at)).toISOString()
+  return null
+}
+
 function isTrialExpired(profile: UserProfileRow) {
   if (profile.subscription_status !== 'trialing') return false
-  if (!profile.trial_ends_at) return false
-  return new Date(profile.trial_ends_at).getTime() < Date.now()
+  const trialEndsAt = getTrialEndsAt(profile)
+  if (!trialEndsAt) return false
+  return new Date(trialEndsAt).getTime() < Date.now()
 }
 
 function getInviteErrorMessage(message: string | undefined, fallback: string) {
@@ -157,14 +170,20 @@ export async function GET() {
   const syncedProfiles = profiles.map((profile) => {
     const authEmail = authEmailByUserId.get(profile.user_id)
     const email = authEmail ?? profile.email
+    const trial_ends_at = getTrialEndsAt(profile)
     const subscription_status = isTrialExpired(profile) ? 'past_due' : profile.subscription_status
-    if (email === profile.email && subscription_status === profile.subscription_status) return profile
-    return { ...profile, email, subscription_status }
+    if (
+      email === profile.email &&
+      subscription_status === profile.subscription_status &&
+      trial_ends_at === profile.trial_ends_at
+    ) return profile
+    return { ...profile, email, subscription_status, trial_ends_at }
   })
 
   const profilesToSync = syncedProfiles.filter((profile, index) =>
     profile.email !== profiles[index].email ||
-    profile.subscription_status !== profiles[index].subscription_status
+    profile.subscription_status !== profiles[index].subscription_status ||
+    profile.trial_ends_at !== profiles[index].trial_ends_at
   )
   if (profilesToSync.length > 0) {
     await Promise.all(
@@ -174,6 +193,7 @@ export async function GET() {
           .update({
             email: profile.email,
             subscription_status: profile.subscription_status,
+            trial_ends_at: profile.trial_ends_at,
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', profile.user_id)

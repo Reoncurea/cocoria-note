@@ -5,13 +5,27 @@ type UserProfile = {
   role: string
   onboarding_status: string
   subscription_status: string
+  accepted_at: string | null
   trial_ends_at: string | null
+}
+
+function addOneMonth(date: Date) {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + 1)
+  return result
+}
+
+function getTrialEndsAt(profile: UserProfile) {
+  if (profile.trial_ends_at) return profile.trial_ends_at
+  if (profile.accepted_at) return addOneMonth(new Date(profile.accepted_at)).toISOString()
+  return null
 }
 
 function isTrialExpired(profile: UserProfile) {
   if (profile.subscription_status !== 'trialing') return false
-  if (!profile.trial_ends_at) return false
-  return new Date(profile.trial_ends_at).getTime() < Date.now()
+  const trialEndsAt = getTrialEndsAt(profile)
+  if (!trialEndsAt) return false
+  return new Date(trialEndsAt).getTime() < Date.now()
 }
 
 function canEnterApp(profile: UserProfile | null) {
@@ -63,7 +77,7 @@ export async function updateSession(request: NextRequest) {
   if (user && !isPublicPath) {
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role, onboarding_status, subscription_status, trial_ends_at')
+      .select('role, onboarding_status, subscription_status, accepted_at, trial_ends_at')
       .eq('user_id', user.id)
       .maybeSingle()
 

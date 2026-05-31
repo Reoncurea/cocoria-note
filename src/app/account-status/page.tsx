@@ -29,10 +29,23 @@ function canEnterApp(profile: Profile | null) {
   return profile.subscription_status === 'trialing' || profile.subscription_status === 'active'
 }
 
+function addOneMonth(date: Date) {
+  const result = new Date(date)
+  result.setMonth(result.getMonth() + 1)
+  return result
+}
+
+function getTrialEndsAt(profile: Profile) {
+  if (profile.trial_ends_at) return profile.trial_ends_at
+  if (profile.accepted_at) return addOneMonth(new Date(profile.accepted_at)).toISOString()
+  return null
+}
+
 function isTrialExpired(profile: Profile) {
   if (profile.subscription_status !== 'trialing') return false
-  if (!profile.trial_ends_at) return false
-  return new Date(profile.trial_ends_at).getTime() < Date.now()
+  const trialEndsAt = getTrialEndsAt(profile)
+  if (!trialEndsAt) return false
+  return new Date(trialEndsAt).getTime() < Date.now()
 }
 
 function statusMessage(profile: Profile | null): StatusMessage {
@@ -121,6 +134,7 @@ export default async function AccountStatusPage() {
         .from('user_profiles')
         .update({
           subscription_status: 'past_due',
+          trial_ends_at: getTrialEndsAt(profile),
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
