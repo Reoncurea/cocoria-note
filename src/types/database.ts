@@ -46,6 +46,11 @@ export interface VisitPhotoRow {
   caption: string | null; sort_order: number; created_at: string
 }
 
+export interface PlanningPhotoRow {
+  id: string; session_id: string; user_id: string; file_path: string
+  caption: string | null; sort_order: number; created_at: string
+}
+
 export interface BreathCheckRow { id: string; visit_id: string; memo: string | null; created_at: string }
 
 export interface BreathCheckCellRow {
@@ -164,6 +169,12 @@ export interface Database {
         Update: Partial<Omit<VisitPhotoRow, 'id' | 'created_at'>>
         Relationships: []
       }
+      planning_photos: {
+        Row: PlanningPhotoRow
+        Insert: Omit<PlanningPhotoRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<PlanningPhotoRow, 'id' | 'created_at'>>
+        Relationships: []
+      }
       breath_checks: {
         Row: BreathCheckRow
         Insert: Omit<BreathCheckRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
@@ -230,6 +241,7 @@ export type Visit = VisitRow
 export type VisitTag = VisitTagRow
 export type ServiceRecord = ServiceRecordRow
 export type VisitPhoto = VisitPhotoRow
+export type PlanningPhoto = PlanningPhotoRow
 export type BreathCheck = BreathCheckRow
 export type BreathCheckCell = BreathCheckCellRow
 export type Billing = BillingRow

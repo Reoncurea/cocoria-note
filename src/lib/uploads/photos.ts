@@ -25,3 +25,9 @@ export function createVisitPhotoPath(userId: string, visitId: string, file: File
   const randomId = crypto.randomUUID()
   return `${userId}/${visitId}/${randomId}.${extension}`
 }
+
+export function createPlanningPhotoPath(userId: string, sessionId: string, file: File) {
+  const extension = ALLOWED_PHOTO_TYPES[file.type as AllowedPhotoType]
+  const randomId = crypto.randomUUID()
+  return `${userId}/${sessionId}/${randomId}.${extension}`
+}
