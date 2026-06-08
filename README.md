@@ -1,4 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# cocoria-note
+
+cocoria-note は、産後ケア・産後パートナー事業の顧客対応を管理するための業務アプリです。
+
+全体像、運用手順、開発メモは [docs/wiki.md](docs/wiki.md) を参照してください。
 
 ## Getting Started
 
