@@ -28,12 +28,20 @@ export async function POST() {
 
   const { data: currentProfile, error: fetchError } = await adminSupabase
     .from('user_profiles')
-    .select('accepted_at, trial_ends_at')
+    .select('accepted_at, invited_by, onboarding_status, trial_ends_at')
     .eq('user_id', user!.id)
     .maybeSingle()
 
   if (fetchError) {
     return NextResponse.json({ error: 'Account setup could not be loaded' }, { status: 500 })
+  }
+
+  if (!currentProfile || currentProfile.invited_by === null) {
+    return NextResponse.json({ error: 'This account has not been invited' }, { status: 403 })
+  }
+
+  if (currentProfile.onboarding_status !== 'pending' && currentProfile.accepted_at) {
+    return NextResponse.json({ error: 'Account setup has already been completed' }, { status: 409 })
   }
 
   const now = new Date()
