@@ -17,6 +17,41 @@ const deleteSchema = z.object({
   onboarding_status: z.enum(['pending', 'completed']).optional(),
 }).strict()
 
+const PROFILE_COLUMNS =
+  'user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at'
+
+const PROFILE_COLUMNS_FALLBACK =
+  'user_id, email, display_name, role, onboarding_status, subscription_status, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at'
+
+type UserProfileResponse = {
+  user_id: string
+  email: string | null
+  display_name: string | null
+  role: string
+  onboarding_status: string
+  subscription_status: string
+  photo_upload_enabled: boolean
+  invited_at: string | null
+  accepted_at: string | null
+  trial_ends_at: string | null
+  current_period_end: string | null
+  grace_until: string | null
+  created_at: string
+  updated_at: string
+}
+
+function isMissingPhotoUploadColumn(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? ''
+  return error?.code === '42703' || message.includes('photo_upload_enabled')
+}
+
+function withDefaultPhotoOption(profile: Omit<UserProfileResponse, 'photo_upload_enabled'> & { photo_upload_enabled?: boolean | null }): UserProfileResponse {
+  return {
+    ...profile,
+    photo_upload_enabled: Boolean(profile.photo_upload_enabled),
+  }
+}
+
 function addDays(date: Date, days: number) {
   const result = new Date(date)
   result.setDate(result.getDate() + days)
@@ -88,14 +123,29 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .from('user_profiles')
     .update(update)
     .eq('user_id', userId)
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select(PROFILE_COLUMNS)
     .single()
 
   if (updateError) {
+    if (isMissingPhotoUploadColumn(updateError)) {
+      const fallbackUpdate = { ...update }
+      delete fallbackUpdate.photo_upload_enabled
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('user_profiles')
+        .update(fallbackUpdate)
+        .eq('user_id', userId)
+        .select(PROFILE_COLUMNS_FALLBACK)
+        .single()
+
+      if (!fallbackError && fallbackData) {
+        return NextResponse.json(withDefaultPhotoOption(fallbackData as Omit<UserProfileResponse, 'photo_upload_enabled'>))
+      }
+    }
     return NextResponse.json({ error: 'User profile could not be updated' }, { status: 500 })
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json(withDefaultPhotoOption(data as UserProfileResponse))
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {

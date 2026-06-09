@@ -27,6 +27,24 @@ type UserProfileRow = {
   updated_at: string
 }
 
+const PROFILE_COLUMNS =
+  'user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at'
+
+const PROFILE_COLUMNS_FALLBACK =
+  'user_id, email, display_name, role, onboarding_status, subscription_status, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at'
+
+function isMissingPhotoUploadColumn(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? ''
+  return error?.code === '42703' || message.includes('photo_upload_enabled')
+}
+
+function withDefaultPhotoOption(profile: Omit<UserProfileRow, 'photo_upload_enabled'> & { photo_upload_enabled?: boolean | null }): UserProfileRow {
+  return {
+    ...profile,
+    photo_upload_enabled: Boolean(profile.photo_upload_enabled),
+  }
+}
+
 function getAppOrigin(request: NextRequest) {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN
   if (configuredOrigin) return configuredOrigin.replace(/\/$/, '')
@@ -130,14 +148,29 @@ export async function GET() {
 
   const { data, error: fetchError } = await supabase
     .from('user_profiles')
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select(PROFILE_COLUMNS)
     .order('created_at', { ascending: false })
 
   if (fetchError) {
-    return NextResponse.json({ error: 'User list could not be loaded' }, { status: 500 })
+    if (!isMissingPhotoUploadColumn(fetchError)) {
+      return NextResponse.json({ error: 'User list could not be loaded' }, { status: 500 })
+    }
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('user_profiles')
+      .select(PROFILE_COLUMNS_FALLBACK)
+      .order('created_at', { ascending: false })
+
+    if (fallbackError) {
+      return NextResponse.json({ error: 'User list could not be loaded' }, { status: 500 })
+    }
+
+    return NextResponse.json(
+      ((fallbackData ?? []) as Array<Omit<UserProfileRow, 'photo_upload_enabled'>>).map(withDefaultPhotoOption)
+    )
   }
 
-  const profiles = (data ?? []) as UserProfileRow[]
+  const profiles = ((data ?? []) as UserProfileRow[]).map(withDefaultPhotoOption)
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -293,12 +326,12 @@ export async function POST(request: NextRequest) {
       invited_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select(PROFILE_COLUMNS)
     .single()
 
   if (profileError) {
     return NextResponse.json({ error: '招待は送信されましたが、利用者設定の保存に失敗しました' }, { status: 500 })
   }
 
-  return NextResponse.json(profile, { status: 201 })
+  return NextResponse.json(withDefaultPhotoOption(profile as UserProfileRow), { status: 201 })
 }
