@@ -536,6 +536,11 @@ function PlanningPhotos({
     uploading ||
     photoUsage?.enabled === false ||
     (photoUsage?.remaining ?? 1) <= 0
+  const photoNotice = photoUsage
+    ? photoUsage.enabled
+      ? `1顧客につき、訪問写真と支援計画写真を合計${photoUsage.limit}枚まで保存できます。現在は${photoUsage.count}枚保存済みです。`
+      : '写真アップロードはオプション機能です。'
+    : null
 
   return (
     <div className="space-y-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
@@ -557,14 +562,6 @@ function PlanningPhotos({
         </label>
       </div>
 
-      {photoUsage && (
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {photoUsage.enabled
-            ? `写真 ${photoUsage.count} / ${photoUsage.limit}枚`
-            : '写真アップロードはオプション機能です。'}
-        </p>
-      )}
-
       <textarea
         className="input text-sm"
         rows={2}
@@ -574,34 +571,48 @@ function PlanningPhotos({
       />
 
       {photos.length === 0 ? (
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>写真はまだありません。</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {photos.map(photo => (
-            <div key={photo.id} className="space-y-2 rounded-xl p-3" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-              {photo.signedUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photo.signedUrl}
-                  alt={photo.caption ?? 'プランニング写真'}
-                  className="w-full rounded-lg object-cover"
-                  style={{ aspectRatio: '4 / 3' }}
-                />
-              )}
-              <textarea
-                className="input text-sm"
-                rows={2}
-                defaultValue={photo.caption ?? ''}
-                placeholder="写真メモ"
-                onBlur={event => onUpdateCaption(photo.id, event.target.value)}
-              />
-              <button type="button" onClick={() => onDelete(photo)} className="btn-secondary w-full text-sm py-2">
-                <Trash2 size={14} className="inline mr-1" />
-                削除
-              </button>
-            </div>
-          ))}
+        <div className="space-y-1">
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>写真はまだありません。</p>
+          {photoNotice && (
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              {photoNotice}
+            </p>
+          )}
         </div>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {photos.map(photo => (
+              <div key={photo.id} className="space-y-2 rounded-xl p-3" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                {photo.signedUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo.signedUrl}
+                    alt={photo.caption ?? 'プランニング写真'}
+                    className="w-full rounded-lg object-cover"
+                    style={{ aspectRatio: '4 / 3' }}
+                  />
+                )}
+                <textarea
+                  className="input text-sm"
+                  rows={2}
+                  defaultValue={photo.caption ?? ''}
+                  placeholder="写真メモ"
+                  onBlur={event => onUpdateCaption(photo.id, event.target.value)}
+                />
+                <button type="button" onClick={() => onDelete(photo)} className="btn-secondary w-full text-sm py-2">
+                  <Trash2 size={14} className="inline mr-1" />
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
+          {photoNotice && (
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              {photoNotice}
+            </p>
+          )}
+        </>
       )}
 
       <div className="text-[11px] flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>

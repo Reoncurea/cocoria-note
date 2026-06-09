@@ -310,6 +310,11 @@ export default function VisitEditPage() {
     photoUploading ||
     photoUsage?.enabled === false ||
     (photoUsage?.remaining ?? 1) <= 0
+  const photoNotice = photoUsage
+    ? photoUsage.enabled
+      ? `1顧客につき、訪問写真と支援計画写真を合計${photoUsage.limit}枚まで保存できます。現在は${photoUsage.count}枚保存済みです。`
+      : '写真アップロードはオプション機能です。'
+    : null
 
   return (
     <div className="px-4 pt-6">
@@ -524,14 +529,24 @@ export default function VisitEditPage() {
             </div>
           )}
 
+          {photos.length === 0 && (
+            <div className="space-y-1">
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>写真はまだありません。</p>
+              {photoNotice && (
+                <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                  {photoNotice}
+                </p>
+              )}
+            </div>
+          )}
+
+          {photos.length > 0 && photoNotice && (
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              {photoNotice}
+            </p>
+          )}
+
           <div className="space-y-3 p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-            {photoUsage && (
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {photoUsage.enabled
-                  ? `写真 ${photoUsage.count} / ${photoUsage.limit}枚`
-                  : '写真アップロードはオプション機能です。'}
-              </p>
-            )}
             <textarea
               className="input text-sm"
               rows={3}
