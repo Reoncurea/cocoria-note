@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createPlanningPhotoPath, validatePhotoFile } from '@/lib/uploads/photos'
+import { createVisitPhotoPath, validatePhotoFile } from '@/lib/uploads/photos'
 import {
   CUSTOMER_PHOTO_LIMIT,
   canAddCustomerPhoto,
@@ -8,10 +8,10 @@ import {
 } from '@/lib/uploads/photo-usage'
 import { dbError, requireAuth } from '@/lib/supabase/api-helpers'
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ visitId: string }> }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const { id } = await params
+  const { visitId } = await params
   const { user, supabase, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -29,33 +29,33 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: validationError }, { status: 400 })
   }
 
-  const { enabled, error: enabledError } = await getPhotoUploadEnabled(supabase, user.id)
+  const { enabled, error: enabledError } = await getPhotoUploadEnabled(supabase, user!.id)
   if (enabledError) return NextResponse.json({ error: '写真オプションの確認に失敗しました。' }, { status: 500 })
   if (!enabled) return NextResponse.json({ error: '写真アップロードはオプション機能です。' }, { status: 403 })
 
-  const { data: session, error: sessionError } = await supabase
-    .from('planning_sessions')
+  const { data: visit, error: visitError } = await supabase
+    .from('visits')
     .select('id, customer_id')
-    .eq('id', id)
+    .eq('id', visitId)
     .single()
 
-  if (sessionError || !session) return dbError(sessionError ?? { message: 'Planning session not found' }, 404)
+  if (visitError || !visit) return dbError(visitError ?? { message: 'Visit not found' }, 404)
 
-  const customerId = (session as { customer_id: string }).customer_id
-  const { count: customerPhotoCount, error: usageError } = await getCustomerPhotoUsage(supabase, customerId)
+  const customerId = (visit as { customer_id: string }).customer_id
+  const { count, error: usageError } = await getCustomerPhotoUsage(supabase, customerId)
   if (usageError) return NextResponse.json({ error: '写真枚数の確認に失敗しました。' }, { status: 500 })
-  if (!canAddCustomerPhoto(customerPhotoCount)) {
+  if (!canAddCustomerPhoto(count)) {
     return NextResponse.json({ error: `写真は1顧客につき${CUSTOMER_PHOTO_LIMIT}枚まで保存できます。` }, { status: 409 })
   }
 
-  const { count } = await supabase
-    .from('planning_photos')
+  const { count: visitPhotoCount } = await supabase
+    .from('visit_photos')
     .select('id', { count: 'exact', head: true })
-    .eq('session_id', id)
+    .eq('visit_id', visitId)
 
-  const filePath = createPlanningPhotoPath(user.id, id, file)
+  const filePath = createVisitPhotoPath(user!.id, visitId, file)
   const { error: uploadError } = await supabase.storage
-    .from('planning-photos')
+    .from('visit-photos')
     .upload(filePath, file, {
       contentType: file.type,
       upsert: false,
@@ -64,24 +64,24 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (uploadError) return dbError(uploadError)
 
   const { data: inserted, error: insertError } = await supabase
-    .from('planning_photos')
+    .from('visit_photos')
     .insert({
-      session_id: id,
-      user_id: user.id,
+      visit_id: visitId,
+      user_id: user!.id,
       file_path: filePath,
       caption,
-      sort_order: count ?? 0,
+      sort_order: visitPhotoCount ?? 0,
     })
     .select()
     .single()
 
   if (insertError || !inserted) {
-    await supabase.storage.from('planning-photos').remove([filePath])
-    return dbError(insertError ?? { message: 'Planning photo insert failed' })
+    await supabase.storage.from('visit-photos').remove([filePath])
+    return dbError(insertError ?? { message: 'Visit photo insert failed' })
   }
 
   const { data: signed } = await supabase.storage
-    .from('planning-photos')
+    .from('visit-photos')
     .createSignedUrl(inserted.file_path, 60 * 60)
 
   return NextResponse.json({ ...inserted, signedUrl: signed?.signedUrl })

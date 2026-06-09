@@ -22,7 +22,7 @@ const SUBSCRIPTION_LABELS = {
   canceled: '停止中',
 } as const
 
-type EditableField = 'role' | 'onboarding_status' | 'subscription_status'
+type EditableField = 'role' | 'onboarding_status' | 'subscription_status' | 'photo_upload_enabled'
 
 function getErrorText(body: { error?: unknown } | null, fallback: string) {
   if (typeof body?.error === 'string') return body.error
@@ -79,7 +79,7 @@ export default function AdminUsersClient() {
     return () => { ignore = true }
   }, [])
 
-  async function updateUser(userId: string, field: EditableField, value: string) {
+  async function updateUser(userId: string, field: EditableField, value: string | boolean) {
     setSavingId(userId)
     setMessage(null)
     setError(null)
@@ -323,11 +323,20 @@ export default function AdminUsersClient() {
                     試用終了間近
                   </span>
                 )}
+                <span
+                  className="badge self-start"
+                  style={{
+                    background: user.photo_upload_enabled ? '#dcfce7' : '#fee2e2',
+                    color: user.photo_upload_enabled ? '#166534' : '#991b1b',
+                  }}
+                >
+                  写真{user.photo_upload_enabled ? 'ON' : 'OFF'}
+                </span>
                 <StatusBadge status={user.subscription_status} />
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <SelectField
                 label="権限"
                 value={user.role}
@@ -349,6 +358,38 @@ export default function AdminUsersClient() {
                 options={SUBSCRIPTION_LABELS}
                 onChange={value => updateUser(user.user_id, 'subscription_status', value)}
               />
+              <label>
+                <span className="form-label">写真オプション</span>
+                <div
+                  className="grid grid-cols-2 rounded-lg p-1"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  <button
+                    type="button"
+                    disabled={savingId === user.user_id}
+                    onClick={() => updateUser(user.user_id, 'photo_upload_enabled', false)}
+                    className="rounded-md px-3 py-2 text-sm font-bold disabled:opacity-60"
+                    style={{
+                      background: user.photo_upload_enabled ? 'transparent' : '#fee2e2',
+                      color: user.photo_upload_enabled ? 'var(--color-text-muted)' : '#991b1b',
+                    }}
+                  >
+                    OFF
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingId === user.user_id}
+                    onClick={() => updateUser(user.user_id, 'photo_upload_enabled', true)}
+                    className="rounded-md px-3 py-2 text-sm font-bold disabled:opacity-60"
+                    style={{
+                      background: user.photo_upload_enabled ? '#dcfce7' : 'transparent',
+                      color: user.photo_upload_enabled ? '#166534' : 'var(--color-text-muted)',
+                    }}
+                  >
+                    ON
+                  </button>
+                </div>
+              </label>
             </div>
 
             <div className="grid gap-1 text-xs sm:grid-cols-2" style={{ color: 'var(--color-text-muted)' }}>

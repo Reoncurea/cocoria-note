@@ -106,6 +106,7 @@ export interface UserProfileRow {
   role: 'admin' | 'user' | 'supporter'
   onboarding_status: 'pending' | 'completed'
   subscription_status: 'trialing' | 'active' | 'past_due' | 'canceled'
+  photo_upload_enabled: boolean
   invited_by: string | null
   invited_at: string | null
   accepted_at: string | null

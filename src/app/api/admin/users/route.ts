@@ -17,6 +17,7 @@ type UserProfileRow = {
   role: string
   onboarding_status: string
   subscription_status: string
+  photo_upload_enabled: boolean
   invited_at: string | null
   accepted_at: string | null
   trial_ends_at: string | null
@@ -129,7 +130,7 @@ export async function GET() {
 
   const { data, error: fetchError } = await supabase
     .from('user_profiles')
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
     .order('created_at', { ascending: false })
 
   if (fetchError) {
@@ -292,7 +293,7 @@ export async function POST(request: NextRequest) {
       invited_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
     .single()
 
   if (profileError) {

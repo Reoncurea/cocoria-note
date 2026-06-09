@@ -9,6 +9,7 @@ const patchSchema = z.object({
   role: z.enum(['admin', 'user', 'supporter']).optional(),
   onboarding_status: z.enum(['pending', 'completed']).optional(),
   subscription_status: z.enum(['trialing', 'active', 'past_due', 'canceled']).optional(),
+  photo_upload_enabled: z.boolean().optional(),
 }).strict()
 
 const deleteSchema = z.object({
@@ -65,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   const now = new Date()
-  const update: Record<string, string | null> = {
+  const update: Record<string, string | boolean | null> = {
     ...result.data,
     updated_at: now.toISOString(),
   }
@@ -87,7 +88,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .from('user_profiles')
     .update(update)
     .eq('user_id', userId)
-    .select('user_id, email, display_name, role, onboarding_status, subscription_status, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
+    .select('user_id, email, display_name, role, onboarding_status, subscription_status, photo_upload_enabled, invited_at, accepted_at, trial_ends_at, current_period_end, grace_until, created_at, updated_at')
     .single()
 
   if (updateError) {

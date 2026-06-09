@@ -15,6 +15,7 @@ type AnswerValue = string | string[] | number | null
 type PlanningAnswerMap = Record<string, Record<string, AnswerValue>>
 type PlanningSessionSummary = { id: string; created_at?: string; status?: string }
 type PlanningPhotoWithUrl = PlanningPhoto & { signedUrl?: string }
+type PhotoUsage = { enabled: boolean; count: number; limit: number; remaining: number }
 
 type EditableField = {
   section: string
@@ -131,6 +132,7 @@ export default function CustomerDetailPage() {
   const [planningError, setPlanningError] = useState<string | null>(null)
   const [photoCaption, setPhotoCaption] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoUsage, setPhotoUsage] = useState<PhotoUsage | null>(null)
 
   const withSignedUrls = useCallback(async (photoRows: PlanningPhoto[]): Promise<PlanningPhotoWithUrl[]> => {
     return Promise.all(photoRows.map(async photo => {
@@ -143,13 +145,17 @@ export default function CustomerDetailPage() {
     let ignore = false
 
     async function load() {
-      const [cRes, bRes] = await Promise.all([
+      const [cRes, bRes, usageResponse] = await Promise.all([
         supabase.from('customers').select('*').eq('id', id).single(),
         supabase.from('babies').select('*').eq('customer_id', id).order('sort_order'),
+        fetch(`/api/customers/${id}/photo-usage`, { cache: 'no-store' }),
       ])
       if (ignore) return
       setCustomer(cRes.data)
       setBabies(bRes.data ?? [])
+      if (usageResponse.ok) {
+        setPhotoUsage(await usageResponse.json() as PhotoUsage)
+      }
 
       const sessRes = await fetch(`/api/planning/sessions?customer_id=${id}`)
       const sessions = await sessRes.json() as PlanningSessionSummary[]
@@ -240,6 +246,18 @@ export default function CustomerDetailPage() {
     setPhotoUploading(true)
     setPlanningError(null)
 
+    if (photoUsage && !photoUsage.enabled) {
+      setPlanningError('写真アップロードはオプション機能です。')
+      setPhotoUploading(false)
+      return
+    }
+
+    if (photoUsage && photoUsage.remaining <= 0) {
+      setPlanningError(`写真は1顧客につき${photoUsage.limit}枚まで保存できます。`)
+      setPhotoUploading(false)
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
     if (photoCaption) formData.append('caption', photoCaption)
@@ -258,6 +276,9 @@ export default function CustomerDetailPage() {
 
     const photo = await response.json() as PlanningPhotoWithUrl
     setPlanningPhotos(prev => [...prev, photo])
+    setPhotoUsage(prev => prev
+      ? { ...prev, count: prev.count + 1, remaining: Math.max(prev.remaining - 1, 0) }
+      : prev)
     setPhotoCaption('')
     setPhotoUploading(false)
     setPlanningMessage('写真を追加しました。')
@@ -274,6 +295,9 @@ export default function CustomerDetailPage() {
     await supabase.from('planning_photos').delete().eq('id', photo.id)
     await supabase.storage.from('planning-photos').remove([photo.file_path])
     setPlanningPhotos(prev => prev.filter(item => item.id !== photo.id))
+    setPhotoUsage(prev => prev
+      ? { ...prev, count: Math.max(prev.count - 1, 0), remaining: Math.min(prev.remaining + 1, prev.limit) }
+      : prev)
   }
 
   if (loading) {
@@ -402,6 +426,7 @@ export default function CustomerDetailPage() {
             photos={planningPhotos}
             caption={photoCaption}
             uploading={photoUploading}
+            photoUsage={photoUsage}
             onCaptionChange={setPhotoCaption}
             onUpload={uploadPlanningPhoto}
             onUpdateCaption={updatePhotoCaption}
@@ -492,6 +517,7 @@ function PlanningPhotos({
   photos,
   caption,
   uploading,
+  photoUsage,
   onCaptionChange,
   onUpload,
   onUpdateCaption,
@@ -500,23 +526,29 @@ function PlanningPhotos({
   photos: PlanningPhotoWithUrl[]
   caption: string
   uploading: boolean
+  photoUsage: PhotoUsage | null
   onCaptionChange: (caption: string) => void
   onUpload: (file: File | null) => void
   onUpdateCaption: (photoId: string, caption: string) => void
   onDelete: (photo: PlanningPhotoWithUrl) => void
 }) {
+  const uploadDisabled =
+    uploading ||
+    photoUsage?.enabled === false ||
+    (photoUsage?.remaining ?? 1) <= 0
+
   return (
     <div className="space-y-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-bold" style={{ color: 'var(--color-primary-dark)' }}>写真</p>
-        <label className="btn-secondary text-xs px-3 py-2 cursor-pointer">
+        <label className={`btn-secondary text-xs px-3 py-2 ${uploadDisabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}>
           <Camera size={14} className="inline mr-1" />
           {uploading ? '追加中' : '写真追加'}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
             className="hidden"
-            disabled={uploading}
+            disabled={uploadDisabled}
             onChange={event => {
               onUpload(event.target.files?.[0] ?? null)
               event.currentTarget.value = ''
@@ -524,6 +556,14 @@ function PlanningPhotos({
           />
         </label>
       </div>
+
+      {photoUsage && (
+        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {photoUsage.enabled
+            ? `写真 ${photoUsage.count} / ${photoUsage.limit}枚`
+            : '写真アップロードはオプション機能です。'}
+        </p>
+      )}
 
       <textarea
         className="input text-sm"

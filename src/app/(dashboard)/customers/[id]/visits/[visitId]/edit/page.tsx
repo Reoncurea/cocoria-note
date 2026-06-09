@@ -28,6 +28,7 @@ interface FormValues {
 }
 
 type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
+type PhotoUsage = { enabled: boolean; count: number; limit: number; remaining: number }
 
 const RECORD_CATEGORIES = [
   { group: '赤ちゃんのお世話', items: ['ミルク', 'オムツ(うんち)', 'オムツ(おしっこ)', '沐浴', '抱っこ・あやし', '寝かしつけ'] },
@@ -49,6 +50,7 @@ export default function VisitEditPage() {
   const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
   const [photoCaption, setPhotoCaption] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoUsage, setPhotoUsage] = useState<PhotoUsage | null>(null)
 
   const { register, control, handleSubmit, watch, setValue, reset } = useForm<FormValues>({
     shouldUnregister: false,
@@ -87,10 +89,11 @@ export default function VisitEditPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data }, { data: records }, { data: photoRows }] = await Promise.all([
+      const [{ data }, { data: records }, { data: photoRows }, usageResponse] = await Promise.all([
         supabase.from('visits').select('*').eq('id', visitId).single(),
         supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
         supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
+        fetch(`/api/customers/${id}/photo-usage`, { cache: 'no-store' }),
       ])
       if (!data) { router.push(`/customers/${id}`); return }
       reset({
@@ -113,6 +116,9 @@ export default function VisitEditPage() {
         })),
       })
       setPhotos(await withSignedUrls((photoRows ?? []) as VisitPhoto[]))
+      if (usageResponse.ok) {
+        setPhotoUsage(await usageResponse.json() as PhotoUsage)
+      }
       setLoading(false)
     }
     load()
@@ -128,6 +134,42 @@ export default function VisitEditPage() {
 
     setPhotoUploading(true)
     setError(null)
+    if (photoUsage && !photoUsage.enabled) {
+      setError('写真アップロードはオプション機能です。')
+      setPhotoUploading(false)
+      return
+    }
+    if (photoUsage && photoUsage.remaining <= 0) {
+      setError(`写真は1顧客につき${photoUsage.limit}枚まで保存できます。`)
+      setPhotoUploading(false)
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    if (photoCaption) formData.append('caption', photoCaption)
+
+    const response = await fetch(`/api/visits/${visitId}/photos`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      setError(body?.error ?? '写真のアップロードに失敗しました。')
+      setPhotoUploading(false)
+      return
+    }
+
+    const uploadedPhoto = await response.json() as VisitPhotoWithUrl
+    setPhotos(prev => [...prev, uploadedPhoto])
+    setPhotoUsage(prev => prev
+      ? { ...prev, count: prev.count + 1, remaining: Math.max(prev.remaining - 1, 0) }
+      : prev)
+    setPhotoCaption('')
+    setPhotoUploading(false)
+    return
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       setError('ログインが必要です')
@@ -135,9 +177,9 @@ export default function VisitEditPage() {
       return
     }
 
-    const filePath = createVisitPhotoPath(user.id, visitId, file)
-    const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file, {
-      contentType: file.type,
+    const filePath = createVisitPhotoPath(user!.id, visitId, file!)
+    const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file!, {
+      contentType: file!.type,
       upsert: false,
     })
     if (uploadErr) {
@@ -150,7 +192,7 @@ export default function VisitEditPage() {
       .from('visit_photos')
       .insert({
         visit_id: visitId,
-        user_id: user.id,
+        user_id: user!.id,
         file_path: filePath,
         caption: photoCaption || null,
         sort_order: photos.length,
@@ -182,6 +224,9 @@ export default function VisitEditPage() {
     await supabase.from('visit_photos').delete().eq('id', photo.id)
     await supabase.storage.from('visit-photos').remove([photo.file_path])
     setPhotos(prev => prev.filter(p => p.id !== photo.id))
+    setPhotoUsage(prev => prev
+      ? { ...prev, count: Math.max(prev.count - 1, 0), remaining: Math.min(prev.remaining + 1, prev.limit) }
+      : prev)
   }
 
   async function saveVisit(values: FormValues, returnToBreathCheck: boolean) {
@@ -260,6 +305,11 @@ export default function VisitEditPage() {
       </div>
     )
   }
+
+  const photoUploadDisabled =
+    photoUploading ||
+    photoUsage?.enabled === false ||
+    (photoUsage?.remaining ?? 1) <= 0
 
   return (
     <div className="px-4 pt-6">
@@ -475,6 +525,13 @@ export default function VisitEditPage() {
           )}
 
           <div className="space-y-3 p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            {photoUsage && (
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {photoUsage.enabled
+                  ? `写真 ${photoUsage.count} / ${photoUsage.limit}枚`
+                  : '写真アップロードはオプション機能です。'}
+              </p>
+            )}
             <textarea
               className="input text-sm"
               rows={3}
@@ -482,13 +539,13 @@ export default function VisitEditPage() {
               value={photoCaption}
               onChange={e => setPhotoCaption(e.target.value)}
             />
-            <label className="btn-primary block text-center text-sm py-3 cursor-pointer">
+            <label className={`btn-primary block text-center text-sm py-3 ${photoUploadDisabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}>
               {photoUploading ? 'アップロード中...' : '写真をアップロード'}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                disabled={photoUploading}
+                disabled={photoUploadDisabled}
                 onChange={e => {
                   void uploadPhoto(e.target.files?.[0] ?? null)
                   e.currentTarget.value = ''
