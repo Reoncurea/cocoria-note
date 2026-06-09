@@ -360,18 +360,22 @@ export default function AdminUsersClient() {
               />
               <label>
                 <span className="form-label">写真オプション</span>
+                <div className="mb-1 text-xs font-bold" style={{ color: user.photo_upload_enabled ? '#166534' : '#991b1b' }}>
+                  現在: {user.photo_upload_enabled ? 'ON（写真アップロード可）' : 'OFF（写真アップロード不可）'}
+                </div>
                 <div
-                  className="grid grid-cols-2 rounded-lg p-1"
+                  className="grid grid-cols-2 rounded-xl p-1"
                   style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
                 >
                   <button
                     type="button"
                     disabled={savingId === user.user_id}
                     onClick={() => updateUser(user.user_id, 'photo_upload_enabled', false)}
-                    className="rounded-md px-3 py-2 text-sm font-bold disabled:opacity-60"
+                    className="rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-60"
                     style={{
-                      background: user.photo_upload_enabled ? 'transparent' : '#fee2e2',
-                      color: user.photo_upload_enabled ? 'var(--color-text-muted)' : '#991b1b',
+                      background: user.photo_upload_enabled ? 'transparent' : '#991b1b',
+                      color: user.photo_upload_enabled ? 'var(--color-text-muted)' : '#ffffff',
+                      boxShadow: user.photo_upload_enabled ? 'none' : '0 1px 3px rgba(153, 27, 27, 0.24)',
                     }}
                   >
                     OFF
@@ -380,10 +384,11 @@ export default function AdminUsersClient() {
                     type="button"
                     disabled={savingId === user.user_id}
                     onClick={() => updateUser(user.user_id, 'photo_upload_enabled', true)}
-                    className="rounded-md px-3 py-2 text-sm font-bold disabled:opacity-60"
+                    className="rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-60"
                     style={{
-                      background: user.photo_upload_enabled ? '#dcfce7' : 'transparent',
-                      color: user.photo_upload_enabled ? '#166534' : 'var(--color-text-muted)',
+                      background: user.photo_upload_enabled ? '#166534' : 'transparent',
+                      color: user.photo_upload_enabled ? '#ffffff' : 'var(--color-text-muted)',
+                      boxShadow: user.photo_upload_enabled ? '0 1px 3px rgba(22, 101, 52, 0.24)' : 'none',
                     }}
                   >
                     ON

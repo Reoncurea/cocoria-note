@@ -128,6 +128,12 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   if (updateError) {
     if (isMissingPhotoUploadColumn(updateError)) {
+      if (result.data.photo_upload_enabled !== undefined) {
+        return NextResponse.json({
+          error: '写真オプションを保存するには、先にSupabaseのDB更新が必要です。',
+        }, { status: 409 })
+      }
+
       const fallbackUpdate = { ...update }
       delete fallbackUpdate.photo_upload_enabled
 
