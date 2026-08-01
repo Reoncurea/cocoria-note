@@ -1,6 +1,6 @@
 # cocoria-note Wiki
 
-最終更新: 2026-06-08
+最終更新: 2026-08-01
 
 ## 1. このアプリの目的
 
@@ -10,8 +10,9 @@ cocoria-note は、産後ケア・産後パートナー事業の顧客対応を�
 
 - 顧客基本情報
 - 赤ちゃん・家族情報
+- 顧客ごとの進行ステータス（15段階）と「次のタスク」
 - プランニング情報
-- 訪問記録
+- 訪問記録・訪問チェックリスト
 - 訪問写真
 - 支援内容・活動履歴
 - 契約・請求・入金状況
@@ -62,8 +63,12 @@ src/app/(dashboard)/customers/new/page.tsx
 
 できること:
 
-- 基本情報の確認
+- 進行ステータスの確認・変更と「次のタスク」の確認
+- 基本情報の確認（住所からGoogleマップ・経路を開ける）
+- 交通情報（最寄駅・経路・交通費）の確認
+- 次回の訪問予定・前回の訪問内容の確認
 - 赤ちゃん情報の確認
+- 請求・入金状況の確認
 - 最新プランニング情報の確認
 - プランニング情報の直接修正
 - 担当者メモの追加
@@ -73,9 +78,45 @@ src/app/(dashboard)/customers/new/page.tsx
 主な実装:
 
 ```text
-src/app/(dashboard)/customers/[id]/page.tsx
+src/app/(dashboard)/customers/[id]/page.tsx            サーバー側でまとめて取得
+src/app/(dashboard)/customers/[id]/CustomerDetailClient.tsx  画面
+src/components/customer/StageCard.tsx                  進行ステータス
 src/components/customer/ContractHistory.tsx
 ```
+
+### 2.3.1 進行ステータス（15段階）
+
+顧客ごとに、いまどこまで進んでいるかを1〜15の段階で持ちます。
+段階ごとに「次にやること」が決まっていて、顧客詳細・顧客一覧・ダッシュボードに出ます。
+
+| # | ステータス | 次のタスク |
+| --- | --- | --- |
+| 1 | 問い合わせ | 申込フォームを案内する |
+| 2 | 申込フォーム受領 | カルテに転記して交通費を確認する |
+| 3 | 交通費確認中 | 交通経路と交通費を確定する |
+| 4 | 日程調整中 | 訪問日の候補を出して決める |
+| 5 | 日程確定 | 契約書を送付する |
+| 6 | 契約送付済み | 契約の締結を確認する |
+| 7 | 契約締結済み | 請求書を発行して送る |
+| 8 | 請求済み | 入金を確認する |
+| 9 | 入金済み | 訪問前日の確認連絡をする |
+| 10 | 前日確認済み | 訪問して記録を取る |
+| 11 | 訪問完了 | 報告書を作成して送付する |
+| 12 | 報告書送付済み | アンケートを送る |
+| 13 | アンケート送付済み | 次回のご利用を案内する |
+| 14 | 次回案内済み | 返答を受けて次回予約か完了にする |
+| 15 | 完了・継続利用 | （対応中のタスクなし） |
+
+段階ごとに「この日数を超えたら止まっている扱い」の目安を持っています。
+超えると、顧客一覧・ダッシュボード・LINE通知にアラートとして出ます。
+
+定義の正本:
+
+```text
+src/lib/constants/pipeline.ts
+```
+
+段階を増減するときは、ここと migration の check 制約の両方を直してください。
 
 ### 2.4 プランニング
 
@@ -92,10 +133,21 @@ src/components/customer/ContractHistory.tsx
 できること:
 
 - ヒアリング形式でプランニング情報を入力
+- **チャットを使わず、わかっている項目だけフォームで先に入力**（`/form`）
+- カルテの氏名・住所・電話・メールを、空欄の項目へまとめて流し込み
 - 回答内容の編集
 - 提案・レビュー
 - PDF向け出力
 - 顧客詳細から最新プランニング情報を直接修正
+
+フォーム一括入力の画面:
+
+```text
+/customers/[id]/planning/[sessionId]/form
+```
+
+セクション単位で開閉でき、セクションごとにも、まとめてでも保存できます。
+条件つきで表示されるセクションは、チェックを入れるとすべて出せます。
 
 主な実装:
 
@@ -125,8 +177,11 @@ src/app/api/planning/sessions/[id]/photos/route.ts
 できること:
 
 - 訪問予定・実績の登録
+- **訪問チェックリスト（5フェーズ・全50項目）**
 - 訪問時間、休憩、交通手段の記録
 - サービス内容の時系列記録
+- 前回訪問の内容・申し送りの確認
+- Googleマップ・経路を開く
 - 訪問写真の追加
 - 報告書画面の確認
 
@@ -134,8 +189,43 @@ src/app/api/planning/sessions/[id]/photos/route.ts
 
 ```text
 src/app/(dashboard)/customers/[id]/visits/
+src/components/visit/VisitChecklist.tsx
+src/lib/constants/visit-checklist.ts     項目定義（正本）
+src/lib/visits/checklist-context.ts      カルテ・プランニングからの自動表示
 src/lib/uploads/photos.ts
 ```
+
+### 2.5.1 訪問チェックリスト
+
+| フェーズ | 内容 |
+| --- | --- |
+| 訪問前チェック | 日時・住所・交通費・プラン・契約/支払い・アレルギー・緊急連絡先・持参物など |
+| 訪問開始時チェック | 体調・赤ちゃんの様子・本日の希望・優先順位・終了希望時刻・写真可否 |
+| 訪問中の記録 | 開始時刻・実施作業・料理名と保存方法・お世話内容・ヒヤリハット・事故 |
+| 訪問終了時チェック | 実施報告・未完了の説明・保存/温め方・忘れ物・破損確認・終了時刻・次回希望 |
+| 帰宅後チェック | 記録確定・PDF作成・報告書送付・お礼・アンケート・経費/売上登録・次回予約 |
+
+- チェックの状態は `visits.checklist`（JSONB）に入ります
+- 項目定義はアプリ側（`src/lib/constants/visit-checklist.ts`）が正本なので、
+  **項目を増減してもDB変更は不要**です
+- 訪問前チェックの項目は、カルテとプランニング情報から中身を自動で表示します
+  （住所・最寄駅・交通費・アレルギー・緊急連絡先など）
+- 入力は自動保存です（0.7秒待ってからまとめて送信）
+
+### 2.5.2 訪問予定一覧
+
+場所:
+
+```text
+/schedule
+```
+
+できること:
+
+- 全顧客をまたいだ訪問予定の確認（これから／過去）
+- 定期利用の方だけに絞り込み
+- 定期利用者の一覧と利用パターンの確認
+- 報告書が未送信の訪問の把握
 
 ### 2.6 活動履歴
 
@@ -284,12 +374,83 @@ npm run build
 | `SUPABASE_SERVICE_ROLE_KEY` | 管理者API用。絶対に公開しない |
 | `NEXT_PUBLIC_APP_ORIGIN` | 本番URL。例: `https://note.cocoria.net` |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | 問い合わせ先メール |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE通知用。未設定なら通知は送られない |
+| `LINE_NOTIFY_TO` | LINE通知の送信先ユーザーID |
+| `CRON_SECRET` | 定期実行APIの合言葉。未設定なら通知APIは常に401 |
+| `APP_SESSION_CACHE_SECRET` | 認証チェックのキャッシュ署名鍵（任意） |
+
+`APP_SESSION_CACHE_SECRET` は未設定でも動きます。その場合は
+`SUPABASE_SERVICE_ROLE_KEY` を署名鍵として使い、どちらも無ければ
+キャッシュを使わず毎回Supabaseへ問い合わせます（遅くなるだけで、動作はします）。
 
 注意:
 
 - `SUPABASE_SERVICE_ROLE_KEY` はGitHubへ書かない
 - `.env.local` は共有しない
 - VercelのEnvironment Variablesに本番値を登録する
+
+### 3.5 表示速度の作り（2026-08-01に見直し）
+
+以前は、ページを開くたびに次の3つが順番に走っていました。
+
+1. middleware で `auth.getUser()`（Supabaseへ1往復）
+2. middleware で `user_profiles` の照会（もう1往復）
+3. 画面が出てから、クライアント側でデータ取得を開始
+
+そのため「移動 → 空のスピナー → やっとデータ」になっていました。
+いまは次の形にしています。
+
+| やったこと | 実装 |
+| --- | --- |
+| 認証チェックの結果を60秒だけ使い回す | `src/lib/supabase/gate-cache.ts` |
+| 主要画面をサーバー側で描画（データ入りHTMLを返す） | 各 `page.tsx` |
+| 移動中はスケルトンを出す | 各 `loading.tsx` |
+| 写真の署名URLを1回でまとめて発行 | `src/lib/uploads/signed-urls.ts` |
+
+キャッシュはCookieに置きますが、必ずHMAC署名を付け、Supabaseの認証Cookieの
+中身を署名に含めています。ログアウトやトークン更新でCookieが変われば、
+キャッシュは自動的に外れます。データ本体はSupabaseのRLSで守られており、
+ここで判定しているのは「画面に入れるかどうか」だけです。
+
+サーバー側で描画している画面:
+
+```text
+/dashboard
+/customers
+/customers/[id]
+/customers/[id]/visits
+/customers/[id]/visits/[visitId]
+/customers/[id]/planning/[sessionId]/form
+/schedule
+```
+
+これらは `page.tsx` がサーバーでデータを取り、画面部分だけを
+`*Client.tsx` に渡す形になっています。**画面に手を入れるときは
+`*Client.tsx` を、取得するデータを変えるときは `page.tsx` を触ります。**
+
+### 3.6 LINE通知（毎朝のアラート）
+
+Vercel Cron が毎朝 `/api/cron/daily-alerts` を呼び、その日のやることを
+LINEに送ります。**環境変数を入れるまでは何も送信されません。**
+
+送る内容:
+
+- 今日の訪問
+- 明日の訪問（前日確認のリマインド）
+- 同じステータスのまま止まっている顧客と、その「次のタスク」
+- 未送信の報告書
+- 未入金
+
+何も無い日は送信しません。
+
+```text
+src/lib/notify/line.ts          LINEへの送信
+src/lib/notify/daily-alerts.ts  本文の組み立て
+src/app/api/cron/daily-alerts/route.ts
+vercel.json                     実行時刻（UTC）
+```
+
+設定手順 → `docs/line-notification-setup.md`
 
 ## 4. データベースとStorage
 
@@ -315,8 +476,20 @@ npm run build
 | `customer_contracts` | 契約履歴 |
 | `visit_billing` | 訪問単位の請求 |
 | `customer_activities` | 活動履歴 |
+| `customer_stage_events` | 進行ステータスの変更履歴 |
 | `inquiries` | 問い合わせ |
 | `user_profiles` | 権限・利用状態 |
+
+2026-08-01 に追加した列:
+
+| テーブル | 列 | 用途 |
+| --- | --- | --- |
+| `customers` | `pipeline_stage` | 進行ステータス（15段階） |
+| `customers` | `stage_updated_at` | ステータスが最後に変わった日時。滞留判定に使う |
+| `customers` | `stage_note` | ステータスへの補足メモ |
+| `customers` | `nearest_station` / `route_note` / `transport_fee` | 交通情報 |
+| `customers` | `is_recurring` / `recurring_note` | 定期利用かどうかとパターン |
+| `visits` | `checklist` | 訪問チェックリストの状態（JSONB） |
 
 ### 4.2 Storage bucket
 
@@ -340,6 +513,8 @@ npm run build
 20260530_limit_admin_data_visibility.sql
 20260531_harden_invites_and_trial_limits.sql
 20260608_add_planning_photos.sql
+20260609_add_photo_upload_option.sql
+20260801_add_pipeline_and_visit_checklist.sql
 ```
 
 本番反映時は、VercelのデプロイだけではDB変更は反映されません。Supabase側にも未適用migrationを反映してください。
@@ -401,7 +576,17 @@ DB変更がある例:
 ```text
 20260531_harden_invites_and_trial_limits.sql
 20260608_add_planning_photos.sql
+20260801_add_pipeline_and_visit_checklist.sql
 ```
+
+`20260801_add_pipeline_and_visit_checklist.sql` を適用するまでは、
+顧客一覧・顧客詳細・ダッシュボード・訪問予定が正しく表示されません
+（`pipeline_stage` などの列がまだ無いため）。**コードのデプロイと同時に適用してください。**
+
+このmigrationは最後に、既存の顧客のステータスを実績から推定して引き上げます
+（契約履歴があれば「契約締結済み」、訪問実績があれば「訪問完了」、報告書送信済みなら
+「報告書送付済み」）。あくまで推定なので、**適用後に顧客一覧で実態と合っているか
+確認して、違うものは画面から直してください。**
 
 ### 6.3 本番確認
 
@@ -412,17 +597,24 @@ DB変更がある例:
 - `/customers`
 - `/customers/[id]`
 - `/customers/[id]/planning`
+- `/customers/[id]/planning/[sessionId]/form`
 - `/customers/[id]/visits`
+- `/customers/[id]/visits/[visitId]`
+- `/schedule`
 - `/admin/users`
 
 最低限見る動作:
 
 - ログインできる
-- 顧客一覧が表示される
+- 顧客一覧が表示される（ステータスのバッジと「次のタスク」が出る）
 - 顧客詳細が表示される
+- 進行ステータスを変更でき、変更後に画面へ反映される
 - プランニング情報を編集できる
+- フォーム一括入力で保存できる
 - プランニング写真を追加できる
 - 訪問記録を作成できる
+- 訪問チェックリストにチェックを入れると保存される
+- 訪問予定一覧が表示される
 - 管理者画面が開ける
 
 ## 7. セキュリティ方針
@@ -457,43 +649,45 @@ WebP
 
 ## 8. 現状の注意点
 
-### 8.1 文字化けしているファイルがある
+### 8.1 文字化けの件は解消済み（2026-08-01 確認）
 
-既存docsや一部定数に文字化けが残っています。
-
-確認済みの例:
-
-```text
-docs/launch-checklist.md
-docs/admin-invite-setup.md
-src/lib/constants/statuses.ts
-src/lib/constants/activities.ts
-src/lib/constants/forms.ts
-src/types/database.ts のコメント
-src/lib/supabase/server.ts のコメント
-```
-
-画面表示に影響する定数は、別タスクで優先的に修正してください。
+以前ここに「docsや定数に文字化けが残っている」と書いてありましたが、
+2026-08-01 時点で対象ファイルを確認したところ、いずれも正常に読めます。
+この注意書きは古くなっていたので取り消しました。
 
 ### 8.2 lint warningが残っている
 
-`npm run lint` は成功しますが、既存のReact Hooks warningなどが残っています。
+`npm run lint` は成功しますが、既存のReact Hooks warningなどが残っています（0 errors / 23 warnings）。
 
 主な対象:
 
 ```text
-visits
-billing
-dashboard
-ContractHistory
+customers/[id]/edit
+customers/[id]/billing
+customers/[id]/activities/[activityId]
+customers/[id]/visits/new
+customers/[id]/visits/[visitId]/edit
+customers/[id]/visits/[visitId]/report
+customers/[id]/planning/[sessionId]/export
+CocoriaLogo
 BottomNav
 ```
+
+2026-08-01 の作り替えで、`dashboard` `customers` `customers/[id]`
+`customers/[id]/visits` `customers/[id]/visits/[visitId]` `ContractHistory`
+のwarningは解消しました。
 
 新規機能を追加するときは、触ったファイルのwarningは増やさない方針にします。
 
 ### 8.3 DB migrationは自動反映されない
 
 GitHubへpushしてVercelが成功しても、SupabaseのDB変更は別途反映が必要です。
+
+### 8.4 古いworktreeがlintの対象に入っている
+
+`.claude/worktrees/` に過去の作業コピーが残っており、`npm run lint` が
+そこも走査しています。同じwarningが二重に出るので、不要なら削除するか
+`eslint.config.mjs` の ignores に加えてください。
 
 ## 9. よくあるトラブル
 
@@ -547,7 +741,32 @@ order by created_at desc;
 - Vercelの環境変数を更新
 - Vercelで再デプロイ
 
-### 9.4 Vercelでは直らない
+### 9.4 顧客一覧やダッシュボードが空になる
+
+`20260801_add_pipeline_and_visit_checklist.sql` が本番DBに未適用だと、
+`pipeline_stage` などの列が無いためクエリが失敗し、一覧が空で表示されます。
+
+対応:
+
+- Supabaseに `20260801_add_pipeline_and_visit_checklist.sql` を適用する
+
+### 9.5 LINE通知が届かない
+
+原因候補と確認先は `docs/line-notification-setup.md` の「7. うまくいかないとき」を参照。
+
+手早い切り分け:
+
+```bash
+curl -H "Authorization: Bearer ここにCRON_SECRET" https://note.cocoria.net/api/cron/daily-alerts
+```
+
+### 9.6 ステータスを変えたのに画面が変わらない
+
+進行ステータスの変更は `PATCH /api/customers/[id]/stage` で保存し、
+`router.refresh()` でサーバー側を取り直しています。
+変わらない場合は、ブラウザのコンソールとVercelの関数ログを確認してください。
+
+### 9.7 Vercelでは直らない
 
 DBやStorageを変える変更は、Vercel再デプロイだけでは反映されません。
 
@@ -560,12 +779,28 @@ DBやStorageを変える変更は、Vercel再デプロイだけでは反映さ�
 
 ## 10. 今後の改善候補
 
-- 文字化けファイルの修正
-- 既存lint warningの解消
+- 残りのlint warningの解消（8.2の一覧）
+- 残りの画面（請求・活動履歴・訪問の新規/編集）もサーバー描画へ寄せる
+- 顧客フォームのzodスキーマが3か所に分かれているので1つにまとめる
 - 訪問写真もプランニング写真と同じくサーバーAPI経由に統一
 - Supabase migration適用手順の標準化
+- 進行ステータスの自動更新（報告書を送ったら「報告書送付済み」へ、など）
+- 訪問チェックリストの内容を報告書PDFへ流し込む
 - 管理者向け運用チェック画面の追加
 - 支援者ロールを本格運用する場合の権限整理
 - 請求・契約まわりのStripe連携
 - 画面ごとのテスト追加
+
+## 11. 2026-08-01 の変更まとめ
+
+| 内容 | 主な追加ファイル |
+| --- | --- |
+| 表示速度の改善（サーバー描画・認証キャッシュ・スケルトン） | `src/lib/supabase/gate-cache.ts`, 各 `loading.tsx`, `src/lib/uploads/signed-urls.ts` |
+| 進行ステータス15段階と「次のタスク」 | `src/lib/constants/pipeline.ts`, `src/components/customer/StageCard.tsx`, `src/app/api/customers/[id]/stage/route.ts` |
+| フォーム一括入力 | `src/app/(dashboard)/customers/[id]/planning/[sessionId]/form/` |
+| 訪問チェックリスト | `src/lib/constants/visit-checklist.ts`, `src/lib/visits/checklist-context.ts`, `src/components/visit/VisitChecklist.tsx`, `src/app/api/visits/[visitId]/checklist/route.ts` |
+| 前回訪問内容の表示・Googleマップ | `src/lib/maps.ts` ほか顧客詳細・訪問詳細 |
+| 訪問予定一覧 | `src/app/(dashboard)/schedule/` |
+| LINE通知 | `src/lib/notify/`, `src/app/api/cron/daily-alerts/route.ts`, `vercel.json`, `docs/line-notification-setup.md` |
+| DB変更 | `supabase/migrations/20260801_add_pipeline_and_visit_checklist.sql` |
 

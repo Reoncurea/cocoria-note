@@ -30,16 +30,25 @@ const toForm = (contract: CustomerContract): ContractForm => ({
   notes: contract.notes ?? '',
 })
 
-export default function ContractHistory({ customerId }: { customerId: string }) {
+export default function ContractHistory({
+  customerId,
+  initialContracts,
+}: {
+  customerId: string
+  /** 渡されたときはサーバー側で取得済みなので、ここでは読みに行かない */
+  initialContracts?: CustomerContract[]
+}) {
   const supabase = createClient()
-  const [contracts, setContracts] = useState<CustomerContract[]>([])
-  const [loading, setLoading] = useState(true)
+  const [contracts, setContracts] = useState<CustomerContract[]>(initialContracts ?? [])
+  const [loading, setLoading] = useState(initialContracts === undefined)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ContractForm>(() => emptyForm())
   const [editForm, setEditForm] = useState<ContractForm>(() => emptyForm())
 
   useEffect(() => {
+    if (initialContracts !== undefined) return
+
     async function load() {
       const { data } = await supabase
         .from('customer_contracts')
@@ -50,7 +59,9 @@ export default function ContractHistory({ customerId }: { customerId: string }) 
       setLoading(false)
     }
     load()
-  }, [customerId])
+    // supabase クライアントは毎回作り直されるので依存に入れない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, initialContracts])
 
   async function addContract(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

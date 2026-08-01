@@ -1,343 +1,132 @@
-'use client'
+import { createClient } from '@/lib/supabase/server'
+import { signedUrlMap } from '@/lib/uploads/signed-urls'
+import { normalizeChecklist } from '@/lib/constants/visit-checklist'
+import { buildChecklistContext } from '@/lib/visits/checklist-context'
+import type { BreathCheck, BreathCheckCell, ServiceRecord, Visit, VisitPhoto } from '@/types/database'
+import VisitDetailClient, { type VisitPhotoWithUrl } from './VisitDetailClient'
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import type { Visit, ServiceRecord, BreathCheck, BreathCheckCell, VisitPhoto } from '@/types/database'
-import Link from 'next/link'
-import { format } from 'date-fns'
-import { ja } from 'date-fns/locale'
+export default async function VisitDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string; visitId: string }>
+}) {
+  const { id, visitId } = await params
+  const supabase = await createClient()
 
-const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
-type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
+  const [visitRes, recordsRes, breathRes, tagsRes, photosRes, customerRes, sessionRes, billingRes, contractRes] =
+    await Promise.all([
+      supabase.from('visits').select('*').eq('id', visitId).maybeSingle(),
+      supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
+      supabase.from('breath_checks').select('*').eq('visit_id', visitId).maybeSingle(),
+      supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
+      supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
+      supabase
+        .from('customers')
+        .select('address, nearest_station, route_note, transport_fee, transport, pipeline_stage, is_recurring, recurring_note')
+        .eq('id', id)
+        .maybeSingle(),
+      supabase
+        .from('planning_sessions')
+        .select('id, planning_answers(section_id, answers)')
+        .eq('customer_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase.from('billing').select('contracted, invoiced, paid, amount').eq('customer_id', id).maybeSingle(),
+      supabase
+        .from('customer_contracts')
+        .select('title, contracted_date')
+        .eq('customer_id', id)
+        .order('contracted_date', { ascending: false })
+        .limit(1),
+    ])
 
-export default function VisitDetailPage() {
-  const { id, visitId } = useParams<{ id: string; visitId: string }>()
-  const router = useRouter()
-  const supabase = createClient()
-
-  const [visit, setVisit] = useState<Visit | null>(null)
-  const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([])
-  const [breathCheck, setBreathCheck] = useState<BreathCheck | null>(null)
-  const [breathCells, setBreathCells] = useState<BreathCheckCell[]>([])
-  const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
-  const [tags, setTags] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [addingHour, setAddingHour] = useState('')
-
-  useEffect(() => {
-    let ignore = false
-
-    async function load() {
-      const [vRes, srRes, bcRes, vtRes, photoRes] = await Promise.all([
-        supabase.from('visits').select('*').eq('id', visitId).single(),
-        supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
-        supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
-        supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
-        supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
-      ])
-
-      if (ignore) return
-      setVisit(vRes.data)
-      setServiceRecords(srRes.data ?? [])
-      setBreathCheck(bcRes.data)
-      const photosWithUrls = await Promise.all(((photoRes.data ?? []) as VisitPhoto[]).map(async photo => {
-        const { data } = await supabase.storage.from('visit-photos').createSignedUrl(photo.file_path, 60 * 60)
-        return { ...photo, signedUrl: data?.signedUrl }
-      }))
-      if (!ignore) setPhotos(photosWithUrls)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setTags((vtRes.data ?? []).map((vt: any) => {
-        const st = vt.support_tags
-        if (Array.isArray(st)) return st[0]?.name ?? ''
-        return st?.name ?? ''
-      }).filter(Boolean))
-
-      if (bcRes.data) {
-        const { data: cells } = await supabase
-          .from('breath_check_cells')
-          .select('*')
-          .eq('breath_check_id', bcRes.data.id)
-        if (!ignore) setBreathCells(cells ?? [])
-      }
-      if (!ignore) setLoading(false)
-    }
-
-    void load()
-    return () => { ignore = true }
-  }, [supabase, visitId])
-
-  async function toggleCell(hourLabel: string, minute: number) {
-    if (!breathCheck) return
-    const existing = breathCells.find(c => c.hour_label === hourLabel && c.minute_value === minute)
-
-    if (existing) {
-      await supabase.from('breath_check_cells').update({ checked: !existing.checked }).eq('id', existing.id)
-      setBreathCells(prev => prev.map(c => c.id === existing.id ? { ...c, checked: !c.checked } : c))
-    } else {
-      const { data } = await supabase.from('breath_check_cells').insert({
-        breath_check_id: breathCheck.id,
-        hour_label: hourLabel,
-        minute_value: minute,
-        checked: true,
-      }).select().single()
-      if (data) setBreathCells(prev => [...prev, data])
-    }
+  const visit = visitRes.data as Visit | null
+  if (!visit) {
+    return (
+      <div className="text-center py-20" style={{ color: 'var(--color-text-muted)' }}>
+        記録が見つかりません
+      </div>
+    )
   }
 
-  function getHours(): string[] {
-    const hours = new Set(breathCells.map(c => c.hour_label))
-    const sorted = Array.from(hours).sort()
-    return sorted
+  // 呼吸チェックのマス目は、表があるときだけ取りに行く
+  const breathCheck = breathRes.data as BreathCheck | null
+  let breathCells: BreathCheckCell[] = []
+  if (breathCheck) {
+    const { data } = await supabase
+      .from('breath_check_cells')
+      .select('*')
+      .eq('breath_check_id', breathCheck.id)
+    breathCells = (data ?? []) as BreathCheckCell[]
   }
 
-  async function addHour() {
-    const h = addingHour.trim()
-    if (!h || !breathCheck) return
-    const label = h.includes('時') ? h : `${h}時`
-    if (getHours().includes(label)) { setAddingHour(''); return }
+  // 今回より前の訪問。前回の申し送りを訪問前チェックに出すために使う
+  const { data: previousRows } = await supabase
+    .from('visits')
+    .select('id, visit_date, start_time, end_time, next_visit_notes, staff_message, customer_notes')
+    .eq('customer_id', id)
+    .lt('visit_date', visit.visit_date)
+    .order('visit_date', { ascending: false })
+    .limit(1)
+  const lastVisit = previousRows?.[0] ?? null
 
-    const inserts = MINUTES.map(m => ({
-      breath_check_id: breathCheck.id,
-      hour_label: label,
-      minute_value: m,
-      checked: false,
-    }))
-    const { data } = await supabase.from('breath_check_cells').insert(inserts).select()
-    if (data) setBreathCells(prev => [...prev, ...data])
-    setAddingHour('')
+  let lastVisitRecords: ServiceRecord[] = []
+  if (lastVisit) {
+    const { data } = await supabase
+      .from('service_records')
+      .select('*')
+      .eq('visit_id', lastVisit.id)
+      .order('sort_order')
+    lastVisitRecords = (data ?? []) as ServiceRecord[]
   }
 
-  async function updateBreathMemo(memo: string) {
-    if (!breathCheck) return
-    await supabase.from('breath_checks').update({ memo }).eq('id', breathCheck.id)
-    setBreathCheck(prev => prev ? { ...prev, memo } : prev)
+  const photoRows = (photosRes.data ?? []) as VisitPhoto[]
+  const urls = await signedUrlMap(supabase, 'visit-photos', photoRows.map(p => p.file_path))
+  const photos: VisitPhotoWithUrl[] = photoRows.map(photo => ({
+    ...photo,
+    signedUrl: urls[photo.file_path],
+  }))
+
+  const planningAnswers: Record<string, Record<string, unknown>> = {}
+  for (const row of sessionRes.data?.[0]?.planning_answers ?? []) {
+    planningAnswers[row.section_id] = row.answers as Record<string, unknown>
   }
 
-  if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">
-      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--color-primary)' }} />
-    </div>
+  const customer = customerRes.data ?? {
+    address: null, nearest_station: null, route_note: null, transport_fee: null,
+    transport: null, pipeline_stage: null, is_recurring: false, recurring_note: null,
   }
 
-  if (!visit) return <div className="text-center py-20" style={{ color: 'var(--color-text-muted)' }}>記録が見つかりません</div>
+  const checklistContext = buildChecklistContext({
+    visit,
+    customer,
+    planningAnswers,
+    billing: billingRes.data ?? null,
+    latestContract: contractRes.data?.[0] ?? null,
+    lastVisit,
+  })
 
-  const hours = getHours()
+  const tags = (tagsRes.data ?? []).flatMap(row => {
+    const supportTags = (row as { support_tags: { name: string } | { name: string }[] | null }).support_tags
+    if (Array.isArray(supportTags)) return supportTags.map(t => t.name)
+    return supportTags?.name ? [supportTags.name] : []
+  })
 
   return (
-    <div className="px-4 pt-6 space-y-5">
-      {/* ヘッダー */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 -ml-2">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ color: 'var(--color-text)' }}>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div className="flex-1">
-          <h1 className="page-title">
-            {format(new Date(visit.visit_date), 'M月d日（E）', { locale: ja })}
-          </h1>
-          {visit.start_time && (
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {visit.start_time.slice(0, 5)}{visit.end_time ? ` ～ ${visit.end_time.slice(0, 5)}` : ''}
-            </p>
-          )}
-        </div>
-        <Link href={`/customers/${id}/visits/${visitId}/edit`} className="btn-secondary text-sm px-3 py-2">
-          対応履歴の入力
-        </Link>
-        <Link href={`/customers/${id}/visits/${visitId}/report`} className="btn-primary text-sm px-3 py-2">
-          報告書
-        </Link>
-      </div>
-
-      {/* 呼吸チェック表 */}
-      <div className="card space-y-4">
-        <p className="section-label">呼吸チェック表</p>
-
-        {hours.length === 0 ? (
-          <p className="text-sm text-center py-2" style={{ color: 'var(--color-text-muted)' }}>
-            時間帯を追加してください
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left py-1 px-2" style={{ color: 'var(--color-text-muted)', minWidth: '48px' }}>時間</th>
-                  {MINUTES.map(m => (
-                    <th key={m} className="py-1 px-1 text-center" style={{ color: 'var(--color-text-muted)', minWidth: '28px' }}>
-                      {m}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {hours.map(hour => (
-                  <tr key={hour}>
-                    <td className="py-1 px-2 font-semibold text-xs" style={{ color: 'var(--color-text)' }}>{hour}</td>
-                    {MINUTES.map(m => {
-                      const cell = breathCells.find(c => c.hour_label === hour && c.minute_value === m)
-                      const checked = cell?.checked ?? false
-                      return (
-                        <td key={m} className="py-1 px-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleCell(hour, m)}
-                            className="w-6 h-6 rounded transition-colors"
-                            style={{
-                              background: checked ? '#86efac' : 'var(--color-surface)',
-                              border: `1px solid ${checked ? '#4ade80' : 'var(--color-border)'}`,
-                            }}
-                          />
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* 時間帯追加 */}
-        <div className="flex gap-2">
-          <input
-            className="input flex-1 text-sm"
-            placeholder="例：10（時）"
-            value={addingHour}
-            onChange={e => setAddingHour(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addHour())}
-          />
-          <button type="button" onClick={addHour} className="btn-secondary text-sm px-3 flex-shrink-0">
-            ＋ 時間帯
-          </button>
-        </div>
-
-        {/* メモ */}
-        <div>
-          <label className="form-label">メモ（特記事項）</label>
-          <textarea
-            className="input"
-            rows={2}
-            defaultValue={breathCheck?.memo ?? ''}
-            onBlur={e => updateBreathMemo(e.target.value)}
-            placeholder="特記事項..."
-          />
-        </div>
-      </div>
-
-      {/* サポート内容 */}
-      {tags.length > 0 && (
-        <div className="card space-y-2">
-          <p className="section-label">サポート内容</p>
-          <div className="flex flex-wrap gap-2">
-            {tags.map(tag => <span key={tag} className="tag-chip">{tag}</span>)}
-          </div>
-        </div>
-      )}
-
-      {/* 作業記録 */}
-      {serviceRecords.length > 0 && (
-        <div className="card space-y-3">
-          <p className="section-label">時間ごとの作業記録</p>
-          <div className="space-y-2">
-            {serviceRecords.map(r => (
-              <div key={r.id} className="grid grid-cols-3 gap-2 text-sm py-2"
-                style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <span className="font-semibold" style={{ color: 'var(--color-primary-dark)' }}>{r.time_label}</span>
-                <span style={{ color: 'var(--color-text)' }}>{r.content}</span>
-                <span style={{ color: 'var(--color-text-muted)' }}>{r.detail}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 写真共有 */}
-      {photos.length > 0 && (
-        <div className="card space-y-3">
-          <p className="section-label">写真共有</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {photos.map(photo => (
-              <div key={photo.id} className="space-y-2 rounded-xl p-3"
-                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                {photo.signedUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photo.signedUrl}
-                    alt={photo.caption ?? '訪問写真'}
-                    className="w-full rounded-lg object-cover"
-                    style={{ aspectRatio: '4 / 3' }}
-                  />
-                )}
-                {photo.caption && (
-                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{photo.caption}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* メッセージ */}
-      {(visit.staff_message || visit.customer_message) && (
-        <div className="card space-y-3">
-          <p className="section-label">メッセージ</p>
-          {visit.staff_message && (
-            <div>
-              <p className="form-label">担当者から</p>
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{visit.staff_message}</p>
-            </div>
-          )}
-          {visit.customer_message && (
-            <div>
-              <p className="form-label">ご依頼主から</p>
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{visit.customer_message}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 非公開メモ */}
-      {(visit.customer_notes || visit.next_visit_notes || visit.drive_link) && (
-        <div className="card space-y-3">
-          <div className="flex items-center gap-2">
-            <p className="section-label mb-0">非公開メモ</p>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#f3f4f6', color: '#6b7280' }}>非公開</span>
-          </div>
-          {visit.customer_notes && (
-            <div>
-              <p className="form-label">顧客の様子</p>
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{visit.customer_notes}</p>
-            </div>
-          )}
-          {visit.next_visit_notes && (
-            <div>
-              <p className="form-label">次回の予定・申し引き事項</p>
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>{visit.next_visit_notes}</p>
-            </div>
-          )}
-          {visit.drive_link && (
-            <div>
-              <p className="form-label">Googleドライブ等の共有リンク</p>
-              <a
-                href={visit.drive_link}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm underline break-all"
-                style={{ color: 'var(--color-primary-dark)' }}
-              >
-                {visit.drive_link}
-              </a>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="bottom-nav-spacer" />
-    </div>
+    <VisitDetailClient
+      customerId={id}
+      visit={visit}
+      checklistState={normalizeChecklist(visit.checklist)}
+      checklistContext={checklistContext}
+      serviceRecords={(recordsRes.data ?? []) as ServiceRecord[]}
+      breathCheck={breathCheck}
+      initialBreathCells={breathCells}
+      tags={tags}
+      photos={photos}
+      customerAddress={customer.address}
+      lastVisit={lastVisit ? { ...lastVisit, records: lastVisitRecords } : null}
+    />
   )
 }

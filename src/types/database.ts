@@ -7,6 +7,16 @@ export interface CustomerRow {
   age: number | null; phone: string | null; email: string | null; line_id: string | null
   address: string | null; transport: string | null; inquiry_date: string | null
   status: string; notes: string | null; created_at: string; updated_at: string
+  // 進行ステータス（15段階）。定義は src/lib/constants/pipeline.ts
+  pipeline_stage: string; stage_updated_at: string; stage_note: string | null
+  // 交通・定期利用
+  nearest_station: string | null; route_note: string | null; transport_fee: number | null
+  is_recurring: boolean; recurring_note: string | null
+}
+
+export interface CustomerStageEventRow {
+  id: string; customer_id: string; user_id: string
+  from_stage: string | null; to_stage: string; note: string | null; created_at: string
 }
 
 export interface BabyRow {
@@ -32,6 +42,8 @@ export interface VisitRow {
   next_visit_notes: string | null; staff_message: string | null
   drive_link: string | null
   report_sent: boolean; report_sent_at: string | null; created_at: string; updated_at: string
+  // 訪問チェックリストの状態。項目定義は src/lib/constants/visit-checklist.ts
+  checklist: Json
 }
 
 export interface VisitTagRow { id: string; visit_id: string; tag_id: string }
@@ -224,6 +236,12 @@ export interface Database {
         Update: Partial<Omit<CustomerActivityRow, 'id' | 'created_at' | 'updated_at'>>
         Relationships: []
       }
+      customer_stage_events: {
+        Row: CustomerStageEventRow
+        Insert: Omit<CustomerStageEventRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<CustomerStageEventRow, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -250,6 +268,7 @@ export type CustomerContract = CustomerContractRow
 export type VisitBilling = VisitBillingRow
 export type Inquiry = InquiryRow
 export type CustomerActivity = CustomerActivityRow
+export type CustomerStageEvent = CustomerStageEventRow
 export type UserProfile = UserProfileRow
 
 // 拡張型

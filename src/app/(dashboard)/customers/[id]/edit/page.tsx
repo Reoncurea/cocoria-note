@@ -25,6 +25,11 @@ const schema = z.object({
   line_id: z.string().optional(),
   address: z.string().optional(),
   transport: z.string().optional(),
+  nearest_station: z.string().optional(),
+  route_note: z.string().optional(),
+  transport_fee: z.string().optional(),
+  is_recurring: z.boolean().default(false),
+  recurring_note: z.string().optional(),
   inquiry_date: z.string().optional(),
   status: z.string().default('活動中'),
   notes: z.string().optional(),
@@ -46,7 +51,7 @@ export default function CustomerEditPage() {
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
-    defaultValues: { status: '活動中', babies: [] },
+    defaultValues: { status: '活動中', is_recurring: false, babies: [] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'babies' })
@@ -75,6 +80,11 @@ export default function CustomerEditPage() {
         line_id: c.line_id ?? '',
         address: c.address ?? '',
         transport: c.transport ?? '',
+        nearest_station: c.nearest_station ?? '',
+        route_note: c.route_note ?? '',
+        transport_fee: c.transport_fee?.toString() ?? '',
+        is_recurring: c.is_recurring ?? false,
+        recurring_note: c.recurring_note ?? '',
         inquiry_date: c.inquiry_date ?? '',
         status: c.status,
         notes: c.notes ?? '',
@@ -106,6 +116,11 @@ export default function CustomerEditPage() {
         line_id: values.line_id || null,
         address: values.address || null,
         transport: values.transport || null,
+        nearest_station: values.nearest_station || null,
+        route_note: values.route_note || null,
+        transport_fee: values.transport_fee ? parseInt(values.transport_fee, 10) : null,
+        is_recurring: values.is_recurring,
+        recurring_note: values.recurring_note || null,
         inquiry_date: values.inquiry_date || null,
         status: values.status,
         notes: values.notes || null,
@@ -283,6 +298,21 @@ export default function CustomerEditPage() {
           </div>
 
           <div>
+            <label className="form-label">最寄駅</label>
+            <input className="input" placeholder="例：JR中央線 三鷹駅" {...register('nearest_station')} />
+          </div>
+
+          <div>
+            <label className="form-label">交通経路</label>
+            <textarea className="input" rows={2} placeholder="例：三鷹駅からバス10分、〇〇停下車 徒歩3分" {...register('route_note')} />
+          </div>
+
+          <div>
+            <label className="form-label">交通費（往復・円）</label>
+            <input className="input" type="number" inputMode="numeric" placeholder="例：1240" {...register('transport_fee')} />
+          </div>
+
+          <div>
             <label className="form-label">問い合わせ日</label>
             <input className="input" type="date" {...register('inquiry_date')} />
           </div>
@@ -294,6 +324,24 @@ export default function CustomerEditPage() {
               <option value="契約済み">契約済み</option>
               <option value="終了">終了</option>
             </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              15段階の進行ステータスは、顧客詳細の「進行ステータス」から変更します。
+            </p>
+          </div>
+        </div>
+
+        {/* 定期利用 */}
+        <div className="card space-y-4">
+          <p className="section-label">定期利用</p>
+
+          <label className="flex items-center gap-2.5 text-sm" style={{ color: 'var(--color-text)' }}>
+            <input type="checkbox" {...register('is_recurring')} />
+            定期的にご利用いただいている方
+          </label>
+
+          <div>
+            <label className="form-label">利用パターン</label>
+            <input className="input" placeholder="例：毎週火曜 10:00-13:00" {...register('recurring_note')} />
           </div>
         </div>
 

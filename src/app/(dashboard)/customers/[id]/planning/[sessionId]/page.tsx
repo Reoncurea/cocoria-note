@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import questionsConfig from '@/lib/planning/questions.json'
 import type { AllAnswers, AnswerValue, Section } from '@/lib/planning/types'
@@ -229,6 +230,15 @@ export default function PlanningChatPage() {
         total={visibleSectionCount}
         title={currentSection.title}
       />
+
+      <div className="px-4 pt-2">
+        <Link
+          href={`/customers/${id}/planning/${sessionId}/form`}
+          className="btn-secondary text-xs px-3 py-2 inline-block"
+        >
+          わかるところを自分で入力する
+        </Link>
+      </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {chatLog.map((msg, i) => (
