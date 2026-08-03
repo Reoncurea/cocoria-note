@@ -1,19 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MapPin, Navigation } from 'lucide-react'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { createClient } from '@/lib/supabase/client'
 import { mapDirectionsUrl, mapSearchUrl } from '@/lib/maps'
 import VisitChecklist from '@/components/visit/VisitChecklist'
+import BreathCheckTable from '@/components/visit/BreathCheckTable'
+import ServiceRecordQuickAdd from '@/components/visit/ServiceRecordQuickAdd'
 import type { ChecklistState } from '@/lib/constants/visit-checklist'
 import type { ChecklistContext } from '@/lib/visits/checklist-context'
 import type { BreathCheck, BreathCheckCell, ServiceRecord, Visit, VisitPhoto } from '@/types/database'
-
-const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 
 export type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
 
@@ -34,7 +32,7 @@ export default function VisitDetailClient({
   checklistState,
   checklistContext,
   serviceRecords,
-  breathCheck: initialBreathCheck,
+  breathCheck,
   initialBreathCells,
   tags,
   photos,
@@ -54,57 +52,6 @@ export default function VisitDetailClient({
   lastVisit: LastVisit | null
 }) {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
-
-  const [breathCheck, setBreathCheck] = useState<BreathCheck | null>(initialBreathCheck)
-  const [breathCells, setBreathCells] = useState<BreathCheckCell[]>(initialBreathCells)
-  const [addingHour, setAddingHour] = useState('')
-
-  const hours = useMemo(
-    () => Array.from(new Set(breathCells.map(c => c.hour_label))).sort(),
-    [breathCells],
-  )
-
-  async function toggleCell(hourLabel: string, minute: number) {
-    if (!breathCheck) return
-    const existing = breathCells.find(c => c.hour_label === hourLabel && c.minute_value === minute)
-
-    if (existing) {
-      await supabase.from('breath_check_cells').update({ checked: !existing.checked }).eq('id', existing.id)
-      setBreathCells(prev => prev.map(c => c.id === existing.id ? { ...c, checked: !c.checked } : c))
-    } else {
-      const { data } = await supabase.from('breath_check_cells').insert({
-        breath_check_id: breathCheck.id,
-        hour_label: hourLabel,
-        minute_value: minute,
-        checked: true,
-      }).select().single()
-      if (data) setBreathCells(prev => [...prev, data])
-    }
-  }
-
-  async function addHour() {
-    const raw = addingHour.trim()
-    if (!raw || !breathCheck) return
-    const label = raw.includes('時') ? raw : `${raw}時`
-    if (hours.includes(label)) { setAddingHour(''); return }
-
-    const inserts = MINUTES.map(m => ({
-      breath_check_id: breathCheck.id,
-      hour_label: label,
-      minute_value: m,
-      checked: false,
-    }))
-    const { data } = await supabase.from('breath_check_cells').insert(inserts).select()
-    if (data) setBreathCells(prev => [...prev, ...data])
-    setAddingHour('')
-  }
-
-  async function updateBreathMemo(memo: string) {
-    if (!breathCheck) return
-    await supabase.from('breath_checks').update({ memo }).eq('id', breathCheck.id)
-    setBreathCheck(prev => prev ? { ...prev, memo } : prev)
-  }
 
   const searchUrl = mapSearchUrl(customerAddress)
   const directionsUrl = mapDirectionsUrl(customerAddress, { mode: 'transit' })
@@ -118,7 +65,7 @@ export default function VisitDetailClient({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="page-title">
             {format(new Date(visit.visit_date), 'M月d日（E）', { locale: ja })}
           </h1>
@@ -128,36 +75,18 @@ export default function VisitDetailClient({
             </p>
           )}
         </div>
-        <Link href={`/customers/${customerId}/visits/${visit.id}/edit`} className="btn-secondary text-sm px-3 py-2">
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Link href={`/customers/${customerId}/visits/${visit.id}/edit`} className="btn-secondary text-sm py-2.5 text-center">
           対応履歴の入力
         </Link>
-        <Link href={`/customers/${customerId}/visits/${visit.id}/report`} className="btn-primary text-sm px-3 py-2">
+        <Link href={`/customers/${customerId}/visits/${visit.id}/report`} className="btn-primary text-sm py-2.5 text-center">
           報告書
         </Link>
       </div>
 
-      {/* 地図 */}
-      {searchUrl && directionsUrl && (
-        <div className="grid grid-cols-2 gap-2">
-          <a href={searchUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm py-2.5 text-center">
-            <MapPin size={14} className="inline mr-1" />
-            地図を開く
-          </a>
-          <a href={directionsUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm py-2.5 text-center">
-            <Navigation size={14} className="inline mr-1" />
-            経路を調べる
-          </a>
-        </div>
-      )}
-
-      {/* チェックリスト */}
-      <VisitChecklist
-        visitId={visit.id}
-        initialState={checklistState}
-        context={checklistContext}
-      />
-
-      {/* 前回の訪問 */}
+      {/* 前回の訪問（訪問前に見ておきたいので上に置く） */}
       {lastVisit && (
         <div className="card space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -205,87 +134,19 @@ export default function VisitDetailClient({
         </div>
       )}
 
-      {/* 呼吸チェック表 */}
-      <div className="card space-y-4">
-        <p className="section-label">呼吸チェック表</p>
-
-        {!breathCheck ? (
-          <p className="text-sm text-center py-2" style={{ color: 'var(--color-text-muted)' }}>
-            呼吸チェック表がありません
-          </p>
-        ) : hours.length === 0 ? (
-          <p className="text-sm text-center py-2" style={{ color: 'var(--color-text-muted)' }}>
-            時間帯を追加してください
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left py-1 px-2" style={{ color: 'var(--color-text-muted)', minWidth: '48px' }}>時間</th>
-                  {MINUTES.map(m => (
-                    <th key={m} className="py-1 px-1 text-center" style={{ color: 'var(--color-text-muted)', minWidth: '28px' }}>
-                      {m}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {hours.map(hour => (
-                  <tr key={hour}>
-                    <td className="py-1 px-2 font-semibold text-xs" style={{ color: 'var(--color-text)' }}>{hour}</td>
-                    {MINUTES.map(m => {
-                      const cell = breathCells.find(c => c.hour_label === hour && c.minute_value === m)
-                      const checked = cell?.checked ?? false
-                      return (
-                        <td key={m} className="py-1 px-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleCell(hour, m)}
-                            className="w-6 h-6 rounded transition-colors"
-                            style={{
-                              background: checked ? '#86efac' : 'var(--color-surface)',
-                              border: `1px solid ${checked ? '#4ade80' : 'var(--color-border)'}`,
-                            }}
-                          />
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {breathCheck && (
-          <>
-            <div className="flex gap-2">
-              <input
-                className="input flex-1 text-sm"
-                placeholder="例：10（時）"
-                value={addingHour}
-                onChange={e => setAddingHour(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void addHour() } }}
-              />
-              <button type="button" onClick={addHour} className="btn-secondary text-sm px-3 flex-shrink-0">
-                ＋ 時間帯
-              </button>
-            </div>
-
-            <div>
-              <label className="form-label">メモ（特記事項）</label>
-              <textarea
-                className="input"
-                rows={2}
-                defaultValue={breathCheck.memo ?? ''}
-                onBlur={e => updateBreathMemo(e.target.value)}
-                placeholder="特記事項..."
-              />
-            </div>
-          </>
-        )}
-      </div>
+      {/* 地図 */}
+      {searchUrl && directionsUrl && (
+        <div className="grid grid-cols-2 gap-2">
+          <a href={searchUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm py-2.5 text-center">
+            <MapPin size={14} className="inline mr-1" />
+            地図を開く
+          </a>
+          <a href={directionsUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm py-2.5 text-center">
+            <Navigation size={14} className="inline mr-1" />
+            経路を調べる
+          </a>
+        </div>
+      )}
 
       {/* サポート内容 */}
       {tags.length > 0 && (
@@ -297,22 +158,31 @@ export default function VisitDetailClient({
         </div>
       )}
 
-      {/* 作業記録 */}
-      {serviceRecords.length > 0 && (
-        <div className="card space-y-3">
-          <p className="section-label">時間ごとの作業記録</p>
-          <div className="space-y-2">
-            {serviceRecords.map(r => (
-              <div key={r.id} className="grid grid-cols-3 gap-2 text-sm py-2"
-                style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <span className="font-semibold" style={{ color: 'var(--color-primary-dark)' }}>{r.time_label}</span>
-                <span style={{ color: 'var(--color-text)' }}>{r.content}</span>
-                <span style={{ color: 'var(--color-text-muted)' }}>{r.detail}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/*
+        訪問の流れどおりに並べる。
+        呼吸チェックと作業記録は「訪問中の記録」の中に差し込み、
+        作業しながらその場で残せるようにしている。
+      */}
+      <VisitChecklist
+        visitId={visit.id}
+        initialState={checklistState}
+        context={checklistContext}
+        phaseExtras={{
+          during: (
+            <div className="space-y-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+              <BreathCheckTable
+                visitId={visit.id}
+                initialBreathCheck={breathCheck}
+                initialCells={initialBreathCells}
+              />
+              <ServiceRecordQuickAdd
+                visitId={visit.id}
+                initialRecords={serviceRecords}
+              />
+            </div>
+          ),
+        }}
+      />
 
       {/* 写真共有 */}
       {photos.length > 0 && (

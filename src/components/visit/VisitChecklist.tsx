@@ -7,23 +7,39 @@ import {
   phaseProgress,
   totalProgress,
   type ChecklistItem,
+  type ChecklistPhase,
   type ChecklistState,
 } from '@/lib/constants/visit-checklist'
 import type { ChecklistContext } from '@/lib/visits/checklist-context'
 
 type PendingEntry = { checked?: boolean; note?: string | null; time?: string | null }
 
+/** そのフェーズの項目の下に差し込む内容（訪問中の呼吸チェック・作業記録など） */
+export type PhaseExtras = Partial<Record<ChecklistPhase['id'], React.ReactNode>>
+
+/** まだ終わっていない最初のフェーズ。全部終わっていれば最後のフェーズ */
+function firstIncompletePhase(state: ChecklistState): ChecklistPhase['id'] {
+  const found = CHECKLIST_PHASES.find(phase => {
+    const { done, total } = phaseProgress(phase, state)
+    return done < total
+  })
+  return found?.id ?? CHECKLIST_PHASES[CHECKLIST_PHASES.length - 1].id
+}
+
 export default function VisitChecklist({
   visitId,
   initialState,
   context,
+  phaseExtras,
 }: {
   visitId: string
   initialState: ChecklistState
   context: Record<string, ChecklistContext>
+  phaseExtras?: PhaseExtras
 }) {
   const [state, setState] = useState<ChecklistState>(initialState)
-  const [openPhase, setOpenPhase] = useState<string | null>('pre')
+  // 開いた時点で、いま手をつけるべきフェーズを開いておく
+  const [openPhase, setOpenPhase] = useState<string | null>(() => firstIncompletePhase(initialState))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -165,6 +181,8 @@ export default function VisitChecklist({
                       onStampNow={() => stampNow(item)}
                     />
                   ))}
+
+                  {phaseExtras?.[phase.id]}
                 </div>
               )}
             </div>
