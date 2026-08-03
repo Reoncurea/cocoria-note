@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { BreathCheck, BreathCheckCell } from '@/types/database'
 
@@ -28,6 +28,30 @@ export default function BreathCheckTable({
     () => Array.from(new Set(cells.map(c => c.hour_label))).sort(),
     [cells],
   )
+
+  // 別の画面から戻ってきたときに古い状態が出ないよう、開いた時点で取り直す
+  useEffect(() => {
+    let ignore = false
+
+    async function sync() {
+      const { data: check } = await supabase
+        .from('breath_checks')
+        .select('*')
+        .eq('visit_id', visitId)
+        .maybeSingle()
+      if (ignore || !check) return
+      setBreathCheck(check)
+
+      const { data: latestCells } = await supabase
+        .from('breath_check_cells')
+        .select('*')
+        .eq('breath_check_id', check.id)
+      if (!ignore && latestCells) setCells(latestCells)
+    }
+
+    void sync()
+    return () => { ignore = true }
+  }, [supabase, visitId])
 
   async function createBreathCheck() {
     setCreating(true)

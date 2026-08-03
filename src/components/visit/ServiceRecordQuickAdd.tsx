@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { ServiceRecord } from '@/types/database'
 
@@ -25,12 +25,29 @@ export default function ServiceRecordQuickAdd({
   visitId: string
   initialRecords: ServiceRecord[]
 }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [records, setRecords] = useState<ServiceRecord[]>(initialRecords)
   const [time, setTime] = useState('')
   const [detail, setDetail] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 別の画面から戻ってきたときに古い一覧が出ないよう、開いた時点で取り直す
+  useEffect(() => {
+    let ignore = false
+
+    async function sync() {
+      const { data } = await supabase
+        .from('service_records')
+        .select('*')
+        .eq('visit_id', visitId)
+        .order('sort_order')
+      if (!ignore && data) setRecords(data)
+    }
+
+    void sync()
+    return () => { ignore = true }
+  }, [supabase, visitId])
 
   async function addRecord(content: string) {
     const timeLabel = time || nowTime()

@@ -182,6 +182,19 @@ export default function VisitDetailClient({
             </div>
           ),
         }}
+        footer={
+          <div className="space-y-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              チェックが終わったら、詳細な対応履歴を入力して報告書を作ります。
+            </p>
+            <Link
+              href={`/customers/${customerId}/visits/${visit.id}/edit`}
+              className="btn-primary w-full text-sm py-3 block text-center"
+            >
+              詳細な対応履歴を入力 →
+            </Link>
+          </div>
+        }
       />
 
       {/* 写真共有 */}

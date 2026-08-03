@@ -229,7 +229,8 @@ export default function VisitEditPage() {
       : prev)
   }
 
-  async function saveVisit(values: FormValues, returnToBreathCheck: boolean) {
+  /** 保存後にどこへ行くか。'stay' はこの画面に留まる */
+  async function saveVisit(values: FormValues, after: 'stay' | 'work' | 'report') {
     setSaving(true)
     setError(null)
     setSavedMessage(null)
@@ -285,8 +286,13 @@ export default function VisitEditPage() {
 
     setSaving(false)
 
-    if (returnToBreathCheck) {
+    if (after === 'work') {
       router.push(`/customers/${id}/visits/${visitId}`)
+      return
+    }
+
+    if (after === 'report') {
+      router.push(`/customers/${id}/visits/${visitId}/report`)
       return
     }
 
@@ -294,7 +300,7 @@ export default function VisitEditPage() {
   }
 
   async function onSubmit(values: FormValues) {
-    await saveVisit(values, false)
+    await saveVisit(values, 'stay')
   }
 
   if (loading) {
@@ -328,15 +334,15 @@ export default function VisitEditPage() {
         <h1 className="page-title flex-1">対応履歴を入力</h1>
         <button
           type="button"
-          onClick={handleSubmit(values => saveVisit(values, true))}
+          onClick={handleSubmit(values => saveVisit(values, 'work'))}
           disabled={saving}
           className="btn-secondary text-sm px-3 py-2 flex-shrink-0 disabled:opacity-60"
         >
-          呼吸チェックに戻る
+          チェックリストへ戻る
         </button>
         <button
           type="button"
-          onClick={handleSubmit(values => saveVisit(values, false))}
+          onClick={handleSubmit(values => saveVisit(values, 'stay'))}
           disabled={saving}
           className="btn-primary text-sm px-3 py-2 flex-shrink-0 disabled:opacity-60"
         >
@@ -618,6 +624,21 @@ export default function VisitEditPage() {
         <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-60">
           {saving ? '保存中...' : '保存'}
         </button>
+
+        {/* 対応履歴を入れたら報告書、という流れなので、ここに導線を置く */}
+        <div className="card space-y-2">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+            入力が終わったら、報告書を作成します。押すと内容を保存してから報告書へ移動します。
+          </p>
+          <button
+            type="button"
+            onClick={handleSubmit(values => saveVisit(values, 'report'))}
+            disabled={saving}
+            className="btn-primary w-full text-sm py-3 disabled:opacity-60"
+          >
+            {saving ? '保存中...' : '保存して報告書を作成 →'}
+          </button>
+        </div>
 
         <div className="bottom-nav-spacer" />
       </form>

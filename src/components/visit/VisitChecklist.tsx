@@ -17,6 +17,10 @@ type PendingEntry = { checked?: boolean; note?: string | null; time?: string | n
 /** そのフェーズの項目の下に差し込む内容（訪問中の呼吸チェック・作業記録など） */
 export type PhaseExtras = Partial<Record<ChecklistPhase['id'], React.ReactNode>>
 
+function phaseAnchorId(phaseId: ChecklistPhase['id']) {
+  return `visit-phase-${phaseId}`
+}
+
 /** まだ終わっていない最初のフェーズ。全部終わっていれば最後のフェーズ */
 function firstIncompletePhase(state: ChecklistState): ChecklistPhase['id'] {
   const found = CHECKLIST_PHASES.find(phase => {
@@ -31,11 +35,14 @@ export default function VisitChecklist({
   initialState,
   context,
   phaseExtras,
+  footer,
 }: {
   visitId: string
   initialState: ChecklistState
   context: Record<string, ChecklistContext>
   phaseExtras?: PhaseExtras
+  /** 全フェーズの下に置く内容（対応履歴への導線など） */
+  footer?: React.ReactNode
 }) {
   const [state, setState] = useState<ChecklistState>(initialState)
   // 開いた時点で、いま手をつけるべきフェーズを開いておく
@@ -80,6 +87,50 @@ export default function VisitChecklist({
       void flush()
     }
   }, [flush])
+
+  // 対応履歴の画面などから戻ってきたとき、ブラウザが前の表示を再利用して
+  // 古い内容が出ることがある。開いた時点でDBの最新に揃える。
+  useEffect(() => {
+    let ignore = false
+
+    async function sync() {
+      const response = await fetch(`/api/visits/${visitId}/checklist`, { cache: 'no-store' })
+      if (!response.ok || ignore) return
+      const data = await response.json() as { checklist: ChecklistState }
+      // 取得を待つ間に触った項目は上書きしない
+      const pendingIds = Object.keys(pending.current)
+      setState(prev => {
+        const next = { ...data.checklist }
+        for (const id of pendingIds) next[id] = prev[id]
+        return next
+      })
+    }
+
+    void sync()
+    return () => { ignore = true }
+  }, [visitId])
+
+  /** フェーズをたたんで、その見出しまで戻す */
+  function closePhase(phaseId: ChecklistPhase['id']) {
+    setOpenPhase(null)
+    scrollToPhase(phaseId)
+  }
+
+  /** いまのフェーズを閉じて次を開き、次の見出しまで送る */
+  function goToPhase(phaseId: ChecklistPhase['id']) {
+    setOpenPhase(phaseId)
+    scrollToPhase(phaseId)
+  }
+
+  function scrollToPhase(phaseId: ChecklistPhase['id']) {
+    // 開閉の描画が終わってから動かす
+    requestAnimationFrame(() => {
+      document.getElementById(phaseAnchorId(phaseId))?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+  }
 
   function toggle(item: ChecklistItem) {
     const next = !state[item.id]?.checked
@@ -130,14 +181,16 @@ export default function VisitChecklist({
       )}
 
       <div className="space-y-2">
-        {CHECKLIST_PHASES.map(phase => {
+        {CHECKLIST_PHASES.map((phase, phaseIndex) => {
           const open = openPhase === phase.id
           const progress = phaseProgress(phase, state)
           const complete = progress.done === progress.total
+          const next = CHECKLIST_PHASES[phaseIndex + 1]
 
           return (
             <div
               key={phase.id}
+              id={phaseAnchorId(phase.id)}
               className="rounded-xl overflow-hidden"
               style={{ border: '1px solid var(--color-border)' }}
             >
@@ -183,12 +236,34 @@ export default function VisitChecklist({
                   ))}
 
                   {phaseExtras?.[phase.id]}
+
+                  {/* 上まで戻ってたたまなくて済むように、下にも操作を置く */}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => closePhase(phase.id)}
+                      className="btn-secondary text-sm py-2.5 flex-1"
+                    >
+                      たたむ
+                    </button>
+                    {next && (
+                      <button
+                        type="button"
+                        onClick={() => goToPhase(next.id)}
+                        className="btn-primary text-sm py-2.5 flex-1"
+                      >
+                        {next.title} →
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           )
         })}
       </div>
+
+      {footer}
     </div>
   )
 }

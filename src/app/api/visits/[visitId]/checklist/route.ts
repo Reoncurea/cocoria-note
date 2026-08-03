@@ -19,6 +19,31 @@ const patchSchema = z.object({
   ),
 }).strict()
 
+/**
+ * 現在のチェックリストを返す。
+ * 画面はサーバー側で描画しているが、一度開いたページはブラウザ側で再利用されるため、
+ * 別の画面から戻ってきたときに古い内容が出ることがある。
+ * それを避けるため、開いた時点で最新を取り直す用。
+ */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ visitId: string }> }
+) {
+  const { visitId } = await params
+  const { supabase, error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data, error } = await supabase
+    .from('visits')
+    .select('checklist')
+    .eq('id', visitId)
+    .maybeSingle()
+  if (error) return dbError(error)
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  return NextResponse.json({ checklist: normalizeChecklist(data.checklist) })
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ visitId: string }> }
