@@ -252,6 +252,30 @@ export function nextStage(
   return usable[index + 1]?.key ?? null
 }
 
+/**
+ * 訪問予定を登録したときに、進行ステータスを自動で進めるか。
+ * 進めるなら移動先を、そのままでよければ null を返す。
+ *
+ * 2回目以降の利用で、いちいち手でステータスを戻さなくて済むようにするための仕組み。
+ * 「日付が決まるのを待っている段階」と「1周終わった段階」からだけ動かし、
+ * 契約や請求の途中にいる顧客は勝手に飛ばさない。
+ *
+ * 定期利用の方は段階を回さない運用なので、常に null。
+ */
+export function stageAfterVisitScheduled(
+  currentStage: string | null | undefined,
+  isRecurring?: boolean | null,
+): PipelineStage | null {
+  if (isRecurring) return null
+
+  const stage = toStage(currentStage)
+  const advanceFrom: PipelineStage[] = ['scheduling', 'next_offered', 'completed']
+  return advanceFrom.includes(stage) ? 'schedule_fixed' : null
+}
+
+/** 定期利用の方が普段いる段階 */
+export const RECURRING_RESTING_STAGE: PipelineStage = 'completed'
+
 /** 定期利用かどうかで文言が変わる「次のタスク」 */
 export function nextTaskFor(
   value: string | null | undefined,

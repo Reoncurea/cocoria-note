@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown } from 'lucide-react'
 import {
+  RECURRING_RESTING_STAGE,
   STAGE_LIST,
   STAGE_TONE_STYLE,
   daysSince,
@@ -121,6 +122,31 @@ export default function StageCard({
           </Link>
         )}
       </div>
+
+      {/*
+        定期利用の方は毎回この段階を回さない運用。
+        進捗は訪問チェックリストと訪問予定で見る。
+      */}
+      {isRecurring && (
+        <div className="rounded-xl p-3 space-y-2" style={{ background: '#e0f2fe' }}>
+          <p className="text-xs leading-relaxed" style={{ color: '#075985' }}>
+            定期利用の方です。毎回の進捗は<strong>訪問チェックリスト</strong>と
+            <strong>訪問予定</strong>で管理するので、この段階を毎回回す必要はありません。
+            ステータスは「{getStage(RECURRING_RESTING_STAGE).label}」のままで構いません。
+            請求は月末にまとめて行います。
+          </p>
+          {current.key !== RECURRING_RESTING_STAGE && (
+            <button
+              type="button"
+              onClick={() => changeStage(RECURRING_RESTING_STAGE)}
+              disabled={saving}
+              className="btn-secondary w-full text-xs py-2 disabled:opacity-60"
+            >
+              {saving ? '更新中...' : `「${getStage(RECURRING_RESTING_STAGE).label}」に戻す`}
+            </button>
+          )}
+        </div>
+      )}
 
       {stageNote && !pickerOpen && (
         <p className="text-xs px-3 py-2 rounded-lg" style={{ background: '#fffbeb', color: '#92400e' }}>

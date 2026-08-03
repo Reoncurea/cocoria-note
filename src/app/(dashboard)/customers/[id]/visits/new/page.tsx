@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { SupportTag } from '@/types/database'
 import { useForm } from 'react-hook-form'
+import { getStage, stageAfterVisitScheduled } from '@/lib/constants/pipeline'
 
 // 訪問記録は「作業のあとに書くもの」ではなく「訪問より先に作るもの」。
 // ここでは日時などの枠だけ作り、チェックリスト・呼吸チェック・作業記録は
@@ -31,6 +32,8 @@ export default function VisitNewPage() {
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 訪問を登録したときに進行ステータスを進めるかの判断に使う
+  const [customer, setCustomer] = useState<{ pipeline_stage: string | null; is_recurring: boolean | null } | null>(null)
 
   const { register, handleSubmit, watch, setValue } = useForm<FormValues>({
     shouldUnregister: false,
@@ -41,6 +44,7 @@ export default function VisitNewPage() {
   })
 
   const hasBreak = watch('has_break')
+  const willAdvanceStage = stageAfterVisitScheduled(customer?.pipeline_stage, customer?.is_recurring)
 
   function setNow(field: 'start_time' | 'end_time' | 'break_start' | 'break_end') {
     const now = new Date()
@@ -48,14 +52,18 @@ export default function VisitNewPage() {
   }
 
   useEffect(() => {
-    async function loadTags() {
-      const { data } = await supabase.from('support_tags').select('*').order('sort_order')
-      setTags(data ?? [])
+    async function load() {
+      const [tagRes, customerRes] = await Promise.all([
+        supabase.from('support_tags').select('*').order('sort_order'),
+        supabase.from('customers').select('pipeline_stage, is_recurring').eq('id', id).maybeSingle(),
+      ])
+      setTags(tagRes.data ?? [])
+      setCustomer(customerRes.data)
     }
-    loadTags()
+    load()
     // supabase クライアントは毎回作り直されるので依存に入れない
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [id])
 
   function toggleTag(tagId: string) {
     setSelectedTagIds(prev => prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId])
@@ -100,6 +108,17 @@ export default function VisitNewPage() {
     // 呼吸チェック表は訪問中に使うので、この時点で用意しておく
     await supabase.from('breath_checks').insert({ visit_id: visit.id })
 
+    // 2回目以降でステータスを手で戻さなくて済むよう、必要なら自動で進める。
+    // 失敗しても訪問の登録自体は成立させたいので、結果は待つだけで止めない。
+    const nextStage = stageAfterVisitScheduled(customer?.pipeline_stage, customer?.is_recurring)
+    if (nextStage) {
+      await fetch(`/api/customers/${id}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: nextStage }),
+      }).catch(() => null)
+    }
+
     router.push(`/customers/${id}/visits/${visit.id}`)
   }
 
@@ -115,10 +134,16 @@ export default function VisitNewPage() {
         <h1 className="page-title flex-1">訪問を登録</h1>
       </div>
 
-      <p className="text-xs leading-relaxed mb-5 px-1" style={{ color: 'var(--color-text-muted)' }}>
+      <p className="text-xs leading-relaxed mb-3 px-1" style={{ color: 'var(--color-text-muted)' }}>
         まず日時だけ登録します。訪問前チェック・呼吸チェック・作業記録は、
         このあとの作業画面で訪問しながら記録できます。
       </p>
+
+      {willAdvanceStage && (
+        <p className="text-xs leading-relaxed mb-5 px-3 py-2 rounded-lg" style={{ background: '#e0f2fe', color: '#075985' }}>
+          登録すると、進行ステータスが「{getStage(willAdvanceStage).step}. {getStage(willAdvanceStage).label}」に進みます。
+        </p>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div className="card space-y-4">

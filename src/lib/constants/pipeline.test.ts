@@ -10,6 +10,7 @@ import {
   needsFollowUp,
   nextStage,
   nextTaskFor,
+  stageAfterVisitScheduled,
   stagesFor,
   toHoldState,
   toStage,
@@ -174,6 +175,36 @@ describe('isStale', () => {
 
   it('更新日時が無ければ判定しない', () => {
     expect(isStale('inquiry', null)).toBe(false)
+  })
+})
+
+describe('訪問登録による自動進行（2回目以降）', () => {
+  it('日程調整中に訪問を入れたら日程確定へ', () => {
+    expect(stageAfterVisitScheduled('scheduling')).toBe('schedule_fixed')
+  })
+
+  it('1周終わった顧客は日程確定へ戻る', () => {
+    expect(stageAfterVisitScheduled('next_offered')).toBe('schedule_fixed')
+    expect(stageAfterVisitScheduled('completed')).toBe('schedule_fixed')
+  })
+
+  it('契約や請求の途中は勝手に飛ばさない', () => {
+    expect(stageAfterVisitScheduled('contract_sent')).toBeNull()
+    expect(stageAfterVisitScheduled('contract_signed')).toBeNull()
+    expect(stageAfterVisitScheduled('invoiced')).toBeNull()
+    expect(stageAfterVisitScheduled('visit_done')).toBeNull()
+  })
+
+  it('問い合わせ直後も飛ばさない（交通費確認などを抜かさないため）', () => {
+    expect(stageAfterVisitScheduled('inquiry')).toBeNull()
+    expect(stageAfterVisitScheduled('form_received')).toBeNull()
+    expect(stageAfterVisitScheduled('transport_check')).toBeNull()
+  })
+
+  it('定期利用は段階を回さないので、いつでも動かさない', () => {
+    expect(stageAfterVisitScheduled('completed', true)).toBeNull()
+    expect(stageAfterVisitScheduled('next_offered', true)).toBeNull()
+    expect(stageAfterVisitScheduled('scheduling', true)).toBeNull()
   })
 })
 
