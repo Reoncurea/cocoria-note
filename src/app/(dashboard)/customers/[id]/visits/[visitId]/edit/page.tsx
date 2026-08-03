@@ -43,6 +43,7 @@ export default function VisitEditPage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
   const [quickTime, setQuickTime] = useState('')
@@ -227,6 +228,35 @@ export default function VisitEditPage() {
     setPhotoUsage(prev => prev
       ? { ...prev, count: Math.max(prev.count - 1, 0), remaining: Math.min(prev.remaining + 1, prev.limit) }
       : prev)
+  }
+
+  async function deleteVisit() {
+    const ok = window.confirm(
+      'この訪問記録を削除しますか？\n\n'
+      + 'チェックリスト・呼吸チェック・作業記録・写真・この訪問の請求も一緒に消えます。\n'
+      + '元に戻せません。'
+    )
+    if (!ok) return
+
+    setDeleting(true)
+    setError(null)
+
+    // 画像はDBの行を消しても残るので、先にストレージから消しておく
+    const filePaths = photos.map(photo => photo.file_path)
+    if (filePaths.length > 0) {
+      await supabase.storage.from('visit-photos').remove(filePaths)
+    }
+
+    // 紐づくデータはDB側で連動して消える（on delete cascade）
+    const { error: deleteError } = await supabase.from('visits').delete().eq('id', visitId)
+
+    if (deleteError) {
+      setError('削除に失敗しました: ' + deleteError.message)
+      setDeleting(false)
+      return
+    }
+
+    router.push(`/customers/${id}/visits`)
   }
 
   /** 保存後にどこへ行くか。'stay' はこの画面に留まる */
@@ -637,6 +667,23 @@ export default function VisitEditPage() {
             className="btn-primary w-full text-sm py-3 disabled:opacity-60"
           >
             {saving ? '保存中...' : '保存して報告書を作成 →'}
+          </button>
+        </div>
+
+        {/* 訪問記録の削除 */}
+        <div className="space-y-2">
+          <p className="text-xs leading-relaxed px-1" style={{ color: 'var(--color-text-muted)' }}>
+            この訪問記録を消すと、チェックリスト・呼吸チェック・作業記録・写真・
+            この訪問の請求も一緒に消えます。元に戻せません。
+          </p>
+          <button
+            type="button"
+            onClick={deleteVisit}
+            disabled={deleting || saving}
+            className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+            style={{ background: '#fef2f2', color: '#dc2626' }}
+          >
+            {deleting ? '削除中...' : 'この訪問記録を削除する'}
           </button>
         </div>
 
