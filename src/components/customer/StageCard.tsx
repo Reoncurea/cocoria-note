@@ -21,6 +21,7 @@ export default function StageCard({
   stageUpdatedAt,
   stageNote,
   isRecurring,
+  onHold,
 }: {
   customerId: string
   stage: string | null
@@ -28,6 +29,8 @@ export default function StageCard({
   stageNote: string | null
   /** 定期利用の顧客では請求・入金の段階を飛ばす */
   isRecurring: boolean | null
+  /** 保留・待ちのあいだは放置の警告を出さない */
+  onHold?: boolean
 }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -37,7 +40,7 @@ export default function StageCard({
 
   const current = getStage(stage)
   const tone = STAGE_TONE_STYLE[current.tone]
-  const stale = isStale(stage, stageUpdatedAt)
+  const stale = !onHold && isStale(stage, stageUpdatedAt)
   const days = daysSince(stageUpdatedAt)
   const forward = nextStage(stage, isRecurring)
   const task = nextTaskFor(stage, isRecurring)

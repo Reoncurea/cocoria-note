@@ -290,10 +290,88 @@ export function daysSince(value: string | null | undefined): number | null {
 
 /**
  * この段階に留まりすぎていないか。完了段階は対象外。
+ * 保留中かどうかは見ないので、通知の判定には needsFollowUp を使うこと。
  */
 export function isStale(stageValue: string | null | undefined, stageUpdatedAt: string | null | undefined): boolean {
   const stage = getStage(stageValue)
   if (stage.staleAfterDays <= 0) return false
   const days = daysSince(stageUpdatedAt)
   return days !== null && days > stage.staleAfterDays
+}
+
+// ===== 保留・待ち =====
+// 進行ステータスとは別軸。止めている間も段階はそのまま残るので、
+// 解除すれば元の段階から再開できる。
+
+export const HOLD_STATES = ['active', 'waiting', 'paused'] as const
+export type HoldState = (typeof HOLD_STATES)[number]
+
+export type CustomerHold = {
+  hold_state?: string | null
+  hold_reason?: string | null
+  hold_until?: string | null
+}
+
+export const HOLD_LABEL: Record<HoldState, string> = {
+  active: '通常',
+  waiting: '待ち',
+  paused: '保留',
+}
+
+export const HOLD_DESCRIPTION: Record<HoldState, string> = {
+  active: '通常どおり追いかけます。',
+  waiting: '出産の連絡待ちなど、そのうち動く見込みがあるもの。',
+  paused: '契約に至らなかったなど、こちらからは追わないもの。',
+}
+
+export const HOLD_TONE_STYLE: Record<HoldState, { background: string; color: string }> = {
+  active:  { background: 'transparent', color: 'var(--color-text-muted)' },
+  waiting: { background: '#e0f2fe', color: '#075985' },
+  paused:  { background: '#f3f4f6', color: '#4b5563' },
+}
+
+export function toHoldState(value: string | null | undefined): HoldState {
+  return value && (HOLD_STATES as readonly string[]).includes(value)
+    ? (value as HoldState)
+    : 'active'
+}
+
+/** 今日の日付（YYYY-MM-DD）。DBのdate型と文字列で比べるため */
+function todayKey(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * いま止めているか。
+ * hold_until を過ぎていれば、自動的に通常へ戻ったものとして扱う。
+ */
+export function isOnHold(customer: CustomerHold): boolean {
+  const state = toHoldState(customer.hold_state)
+  if (state === 'active') return false
+  if (customer.hold_until && customer.hold_until <= todayKey()) return false
+  return true
+}
+
+/** hold_until を過ぎて、追跡に戻ってきたところか */
+export function isHoldExpired(customer: CustomerHold): boolean {
+  const state = toHoldState(customer.hold_state)
+  if (state === 'active') return false
+  return Boolean(customer.hold_until && customer.hold_until <= todayKey())
+}
+
+/**
+ * いま対応が必要か。アラート・通知の判定はすべてこれを使う。
+ * 保留中は、何日たっても対応不要として扱う。
+ */
+export function needsFollowUp(
+  customer: CustomerHold & {
+    pipeline_stage?: string | null
+    stage_updated_at?: string | null
+  },
+): boolean {
+  if (isOnHold(customer)) return false
+  return isStale(customer.pipeline_stage, customer.stage_updated_at)
 }

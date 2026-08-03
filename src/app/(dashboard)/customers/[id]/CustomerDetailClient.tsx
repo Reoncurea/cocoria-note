@@ -7,6 +7,8 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import ContractHistory from '@/components/customer/ContractHistory'
 import StageCard from '@/components/customer/StageCard'
+import HoldCard from '@/components/customer/HoldCard'
+import { isOnHold } from '@/lib/constants/pipeline'
 import { createClient } from '@/lib/supabase/client'
 import { mapDirectionsUrl, mapSearchUrl } from '@/lib/maps'
 import type { Baby, Customer, CustomerContract, PlanningPhoto } from '@/types/database'
@@ -283,6 +285,14 @@ export default function CustomerDetailClient({
         stageUpdatedAt={customer.stage_updated_at}
         stageNote={customer.stage_note}
         isRecurring={customer.is_recurring}
+        onHold={isOnHold(customer)}
+      />
+
+      <HoldCard
+        customerId={id}
+        holdState={customer.hold_state}
+        holdReason={customer.hold_reason}
+        holdUntil={customer.hold_until}
       />
 
       {nextVisit && <NextVisitCard customerId={id} visit={nextVisit} />}

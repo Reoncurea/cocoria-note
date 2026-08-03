@@ -5,12 +5,16 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import {
+  HOLD_LABEL,
+  HOLD_TONE_STYLE,
   STAGE_LIST,
   STAGE_TONE_STYLE,
   daysSince,
   getStage,
-  isStale,
+  isOnHold,
+  needsFollowUp,
   nextTaskFor,
+  toHoldState,
 } from '@/lib/constants/pipeline'
 
 export type CustomerListItem = {
@@ -22,6 +26,9 @@ export type CustomerListItem = {
   pipeline_stage: string | null
   stage_updated_at: string | null
   is_recurring: boolean | null
+  hold_state: string | null
+  hold_reason: string | null
+  hold_until: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -43,9 +50,16 @@ export default function CustomersListClient({ customers }: { customers: Customer
   const [stageFilter, setStageFilter] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('stale')
   const [recurringOnly, setRecurringOnly] = useState(false)
+  /** 保留・待ちの顧客を一覧に出すか。既定では隠す */
+  const [showHeld, setShowHeld] = useState(false)
 
   const staleCount = useMemo(
-    () => customers.filter(c => isStale(c.pipeline_stage, c.stage_updated_at)).length,
+    () => customers.filter(c => needsFollowUp(c)).length,
+    [customers],
+  )
+
+  const heldCount = useMemo(
+    () => customers.filter(c => isOnHold(c)).length,
     [customers],
   )
 
@@ -63,6 +77,9 @@ export default function CustomersListClient({ customers }: { customers: Customer
     const q = query.trim().toLowerCase()
 
     const filtered = customers.filter(c => {
+      // 止めている顧客は、探しているときだけ出す
+      if (!showHeld && isOnHold(c)) return false
+      if (showHeld && !isOnHold(c)) return false
       if (recurringOnly && !c.is_recurring) return false
       if (stageFilter && getStage(c.pipeline_stage).key !== stageFilter) return false
       if (!q) return true
@@ -74,14 +91,14 @@ export default function CustomersListClient({ customers }: { customers: Customer
         return getStage(a.pipeline_stage).step - getStage(b.pipeline_stage).step
       }
       if (sortKey === 'stale') {
-        const aStale = isStale(a.pipeline_stage, a.stage_updated_at)
-        const bStale = isStale(b.pipeline_stage, b.stage_updated_at)
+        const aStale = needsFollowUp(a)
+        const bStale = needsFollowUp(b)
         if (aStale !== bStale) return aStale ? -1 : 1
         return (daysSince(b.stage_updated_at) ?? 0) - (daysSince(a.stage_updated_at) ?? 0)
       }
       return 0 // recent: サーバー側で created_at 降順に並んでいる
     })
-  }, [customers, query, stageFilter, sortKey, recurringOnly])
+  }, [customers, query, stageFilter, sortKey, recurringOnly, showHeld])
 
   return (
     <div className="px-4 pt-6">
@@ -142,7 +159,25 @@ export default function CustomersListClient({ customers }: { customers: Customer
         >
           定期利用のみ
         </button>
+        {heldCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowHeld(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-full font-medium"
+            style={showHeld
+              ? { background: '#4b5563', color: 'white' }
+              : { background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+          >
+            保留・待ち {heldCount}
+          </button>
+        )}
       </div>
+
+      {showHeld && (
+        <p className="text-xs mb-3 px-1" style={{ color: 'var(--color-text-muted)' }}>
+          止めている顧客だけを表示しています。通知やアラートには出ません。
+        </p>
+      )}
 
       {/* ステータス絞り込み */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
@@ -202,8 +237,10 @@ export default function CustomersListClient({ customers }: { customers: Customer
 function CustomerCard({ customer }: { customer: CustomerListItem }) {
   const stage = getStage(customer.pipeline_stage)
   const tone = STAGE_TONE_STYLE[stage.tone]
-  const stale = isStale(customer.pipeline_stage, customer.stage_updated_at)
+  const stale = needsFollowUp(customer)
   const days = daysSince(customer.stage_updated_at)
+  const held = isOnHold(customer)
+  const holdState = toHoldState(customer.hold_state)
 
   return (
     <Link href={`/customers/${customer.id}`}>
@@ -223,6 +260,11 @@ function CustomerCard({ customer }: { customer: CustomerListItem }) {
               </span>
               {customer.is_recurring && (
                 <span className="badge text-xs" style={{ background: '#e0f2fe', color: '#075985' }}>定期</span>
+              )}
+              {held && (
+                <span className="badge text-xs" style={HOLD_TONE_STYLE[holdState]}>
+                  {HOLD_LABEL[holdState]}
+                </span>
               )}
               <span className={`badge badge-${STATUS_LABELS[customer.status] ?? 'active'}`}>
                 {customer.status}
@@ -245,14 +287,20 @@ function CustomerCard({ customer }: { customer: CustomerListItem }) {
           <span className="badge text-xs" style={tone}>
             {stage.step}. {stage.label}
           </span>
-          {days !== null && (
+          {days !== null && !held && (
             <span className="text-[11px]" style={{ color: stale ? '#c2410c' : 'var(--color-text-muted)' }}>
               {stale ? `⚠ ${days}日 動きなし` : days === 0 ? '本日更新' : `${days}日前に更新`}
             </span>
           )}
+          {held && (
+            <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              {customer.hold_reason ?? '対応を止めています'}
+              {customer.hold_until && `（${customer.hold_until} に再開）`}
+            </span>
+          )}
         </div>
 
-        {stage.key !== 'completed' && (
+        {stage.key !== 'completed' && !held && (
           <div className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>次のタスク: </span>
             {nextTaskFor(customer.pipeline_stage, customer.is_recurring).task}

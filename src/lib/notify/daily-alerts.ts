@@ -14,7 +14,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { getStage, isStale, nextTaskFor } from '@/lib/constants/pipeline'
+import { getStage, needsFollowUp, nextTaskFor } from '@/lib/constants/pipeline'
 
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? 'https://note.cocoria.net'
 
@@ -91,7 +91,7 @@ export async function buildDailyAlert(): Promise<DailyAlert> {
       .limit(10),
     supabase
       .from('customers')
-      .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring')
+      .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring, hold_state, hold_until')
       .neq('pipeline_stage', 'completed')
       .order('stage_updated_at', { ascending: true }),
   ])
@@ -101,7 +101,8 @@ export async function buildDailyAlert(): Promise<DailyAlert> {
   const unsentReports = (unsentRes.data ?? []) as VisitRow[]
   const unpaid = (unpaidRes.data ?? []) as { id: string; customer_id: string; customers: VisitRow['customers'] }[]
 
-  const stale = (customersRes.data ?? []).filter(c => isStale(c.pipeline_stage, c.stage_updated_at))
+  // 保留・待ちにしている顧客は通知しない（ユーザーが意図して止めているため）
+  const stale = (customersRes.data ?? []).filter(c => needsFollowUp(c))
 
   const counts = {
     todayVisits: todayVisits.length,

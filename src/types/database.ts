@@ -12,6 +12,8 @@ export interface CustomerRow {
   // 交通・定期利用
   nearest_station: string | null; route_note: string | null; transport_fee: number | null
   is_recurring: boolean; recurring_note: string | null
+  // 追跡状態（進行ステータスとは別軸）。active / waiting / paused
+  hold_state: string; hold_reason: string | null; hold_until: string | null
 }
 
 export interface CustomerStageEventRow {

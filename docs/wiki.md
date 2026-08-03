@@ -107,6 +107,38 @@ src/components/customer/ContractHistory.tsx
 | 14 | 次回案内済み | 返答を受けて次回予約か完了にする | |
 | 15 | 完了・継続利用 | （対応中のタスクなし） | |
 
+### 2.3.2 保留・待ち（2026-08-03 追加）
+
+進行ステータスとは**別軸**で「いま追わない」を持たせています。
+ステータスはそのまま残るので、解除すれば元の段階から再開できます。
+
+| 状態 | 意味 | 使う場面 |
+| --- | --- | --- |
+| 通常 | 追いかける | 既定 |
+| **待ち** | そのうち動く見込みがある | 産前に申込があり、出産の連絡待ち |
+| **保留** | こちらからは追わない | 問い合わせ・申込は来たが契約に至らなかった |
+
+止めているあいだの挙動:
+
+- 要対応アラート・ダッシュボードの「今日やること」・LINE通知に**出ません**
+- 滞留日数のカウントも止まります
+- 顧客一覧では既定で**隠れます**。「保留・待ち N」ボタンで切り替えて見られます
+- 進行ステータスと入力済みの情報はそのまま残ります
+
+**再開予定日**（`hold_until`）を入れると、その日が来た時点で自動的に通常へ戻り、
+アラートにも復帰します。空のままなら、手動で解除するまで通知は一切出ません。
+
+解除すると `stage_updated_at` を現在時刻に更新します。
+止めていた期間の分だけ、解除直後に「放置」と判定されるのを防ぐためです。
+
+判定は必ず `needsFollowUp()` を使うこと（`isStale()` は保留を見ません）。
+
+```text
+src/lib/constants/pipeline.ts    isOnHold / needsFollowUp / HOLD_LABEL など
+src/components/customer/HoldCard.tsx
+src/app/api/customers/[id]/hold/route.ts
+```
+
 ### 請求のタイミング（2026-08-02 ユーザー確認）
 
 | 契約形態 | 請求のタイミング |
@@ -562,6 +594,14 @@ vercel.json                     実行時刻（UTC）
 | `customers` | `is_recurring` / `recurring_note` | 定期利用かどうかとパターン |
 | `visits` | `checklist` | 訪問チェックリストの状態（JSONB） |
 
+2026-08-03 に追加した列:
+
+| テーブル | 列 | 用途 |
+| --- | --- | --- |
+| `customers` | `hold_state` | 追跡状態（active / waiting / paused） |
+| `customers` | `hold_reason` | 止めている理由 |
+| `customers` | `hold_until` | この日が来たら自動で通常へ戻る |
+
 ### 4.2 Storage bucket
 
 | bucket | 用途 | 公開設定 |
@@ -586,6 +626,7 @@ vercel.json                     実行時刻（UTC）
 20260608_add_planning_photos.sql
 20260609_add_photo_upload_option.sql
 20260801_add_pipeline_and_visit_checklist.sql
+20260803_add_customer_hold.sql
 ```
 
 本番反映時は、VercelのデプロイだけではDB変更は反映されません。Supabase側にも未適用migrationを反映してください。
@@ -648,7 +689,12 @@ DB変更がある例:
 20260531_harden_invites_and_trial_limits.sql
 20260608_add_planning_photos.sql
 20260801_add_pipeline_and_visit_checklist.sql
+20260803_add_customer_hold.sql
 ```
+
+`20260803_add_customer_hold.sql` は列を足すだけで、既存データは変わりません
+（全員 `hold_state = 'active'`＝通常のまま）。適用しないと顧客一覧・顧客詳細・
+ダッシュボードでエラーになるので、コードのデプロイと同時に適用してください。
 
 `20260801_add_pipeline_and_visit_checklist.sql` を適用するまでは、
 顧客一覧・顧客詳細・ダッシュボード・訪問予定が正しく表示されません

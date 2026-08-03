@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
 import { createClient } from '@/lib/supabase/server'
-import { STAGE_TONE_STYLE, daysSince, getStage, isStale, nextTaskFor } from '@/lib/constants/pipeline'
+import { STAGE_TONE_STYLE, daysSince, getStage, isOnHold, needsFollowUp, nextTaskFor } from '@/lib/constants/pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
         .eq('paid', false),
       supabase
         .from('customers')
-        .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring')
+        .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring, hold_state, hold_reason, hold_until')
         .eq('user_id', userId)
         .neq('pipeline_stage', 'completed')
         .order('stage_updated_at', { ascending: true }),
@@ -101,8 +101,9 @@ export default async function DashboardPage() {
     ...(unpaidRes.data ?? []).filter(v => !visitUnpaidCustomerIds.has(v.customer_id)),
   ]
 
-  const openCustomers = customersRes.data ?? []
-  const staleCustomers = openCustomers.filter(c => isStale(c.pipeline_stage, c.stage_updated_at))
+  // 保留・待ちにしている顧客は、対応中の件数にもアラートにも出さない
+  const openCustomers = (customersRes.data ?? []).filter(c => !isOnHold(c))
+  const staleCustomers = openCustomers.filter(c => needsFollowUp(c))
 
   const acceptedAt = profileRes.data?.accepted_at ?? null
   const trialEndsAt = profileRes.data?.trial_ends_at ?? getFallbackTrialEndsAt(acceptedAt)

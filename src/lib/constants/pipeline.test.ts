@@ -4,10 +4,14 @@ import {
   STAGE_LIST,
   daysSince,
   getStage,
+  isHoldExpired,
+  isOnHold,
   isStale,
+  needsFollowUp,
   nextStage,
   nextTaskFor,
   stagesFor,
+  toHoldState,
   toStage,
 } from './pipeline'
 
@@ -16,6 +20,18 @@ function daysAgo(days: number): string {
   date.setDate(date.getDate() - days)
   return date.toISOString()
 }
+
+/** YYYY-MM-DD 形式で、今日から days 日ずらした日付 */
+function dateKey(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/** 放置されている（本来なら対応が必要な）顧客 */
+const staleCustomer = { pipeline_stage: 'inquiry', stage_updated_at: daysAgo(30) }
 
 describe('進行ステータスの定義', () => {
   it('15段階そろっていて、stepが1から順に振られている', () => {
@@ -158,5 +174,58 @@ describe('isStale', () => {
 
   it('更新日時が無ければ判定しない', () => {
     expect(isStale('inquiry', null)).toBe(false)
+  })
+})
+
+describe('保留・待ち', () => {
+  it('未知の値は通常扱いにする', () => {
+    expect(toHoldState(null)).toBe('active')
+    expect(toHoldState('unknown')).toBe('active')
+    expect(toHoldState('paused')).toBe('paused')
+  })
+
+  it('通常は保留ではない', () => {
+    expect(isOnHold({ hold_state: 'active' })).toBe(false)
+    expect(isOnHold({})).toBe(false)
+  })
+
+  it('日付なしの保留は止まったまま', () => {
+    expect(isOnHold({ hold_state: 'paused' })).toBe(true)
+    expect(isOnHold({ hold_state: 'waiting' })).toBe(true)
+  })
+
+  it('再開予定日が未来なら止まったまま', () => {
+    expect(isOnHold({ hold_state: 'waiting', hold_until: dateKey(7) })).toBe(true)
+  })
+
+  it('再開予定日が来たら自動で戻る', () => {
+    expect(isOnHold({ hold_state: 'waiting', hold_until: dateKey(0) })).toBe(false)
+    expect(isOnHold({ hold_state: 'waiting', hold_until: dateKey(-1) })).toBe(false)
+    expect(isHoldExpired({ hold_state: 'waiting', hold_until: dateKey(-1) })).toBe(true)
+    expect(isHoldExpired({ hold_state: 'waiting', hold_until: dateKey(7) })).toBe(false)
+  })
+})
+
+describe('needsFollowUp', () => {
+  it('放置されていれば対応が必要', () => {
+    expect(needsFollowUp(staleCustomer)).toBe(true)
+  })
+
+  it('保留中は何日たっても対応不要', () => {
+    expect(needsFollowUp({ ...staleCustomer, hold_state: 'paused' })).toBe(false)
+    expect(needsFollowUp({ ...staleCustomer, hold_state: 'waiting' })).toBe(false)
+  })
+
+  it('再開予定日を過ぎたら、また対応が必要になる', () => {
+    expect(needsFollowUp({ ...staleCustomer, hold_state: 'waiting', hold_until: dateKey(7) })).toBe(false)
+    expect(needsFollowUp({ ...staleCustomer, hold_state: 'waiting', hold_until: dateKey(-1) })).toBe(true)
+  })
+
+  it('保留を解除しても、放置されていなければ対応不要のまま', () => {
+    expect(needsFollowUp({ pipeline_stage: 'inquiry', stage_updated_at: daysAgo(0) })).toBe(false)
+  })
+
+  it('完了した顧客は保留に関係なく対応不要', () => {
+    expect(needsFollowUp({ pipeline_stage: 'completed', stage_updated_at: daysAgo(365) })).toBe(false)
   })
 })
