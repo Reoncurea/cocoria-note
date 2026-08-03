@@ -30,7 +30,6 @@ const schema = z.object({
   is_recurring: z.boolean().default(false),
   recurring_note: z.string().optional(),
   inquiry_date: z.string().optional(),
-  status: z.string().default('活動中'),
   notes: z.string().optional(),
   babies: z.array(babySchema).default([]),
 })
@@ -45,7 +44,7 @@ export default function CustomerNewPage() {
 
   const { register, control, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
-    defaultValues: { status: '活動中', is_recurring: false, babies: [] },
+    defaultValues: { is_recurring: false, babies: [] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'babies' })
@@ -76,7 +75,6 @@ export default function CustomerNewPage() {
         is_recurring: values.is_recurring,
         recurring_note: values.recurring_note || null,
         inquiry_date: values.inquiry_date || null,
-        status: values.status,
         notes: values.notes || null,
       })
       .select()
@@ -244,15 +242,6 @@ export default function CustomerNewPage() {
           <div>
             <label className="form-label">問い合わせ日</label>
             <input className="input" type="date" {...register('inquiry_date')} />
-          </div>
-
-          <div>
-            <label className="form-label">ステータス</label>
-            <select className="input" {...register('status')}>
-              <option value="活動中">活動中</option>
-              <option value="契約済み">契約済み</option>
-              <option value="終了">終了</option>
-            </select>
           </div>
 
           <label className="flex items-center gap-2.5 text-sm" style={{ color: 'var(--color-text)' }}>

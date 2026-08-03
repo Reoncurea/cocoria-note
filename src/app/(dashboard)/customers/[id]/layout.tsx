@@ -1,14 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import CustomerTabNav from '@/components/layout/CustomerTabNav'
+import {
+  HOLD_LABEL,
+  HOLD_TONE_STYLE,
+  STAGE_TONE_STYLE,
+  getStage,
+  isOnHold,
+  toHoldState,
+} from '@/lib/constants/pipeline'
 
 export const dynamic = 'force-dynamic'
-
-const STATUS_BADGE: Record<string, string> = {
-  '活動中': 'badge-active',
-  '契約済み': 'badge-contracted',
-  '終了': 'badge-ended',
-}
 
 type Props = {
   children: React.ReactNode
@@ -20,9 +22,13 @@ export default async function CustomerLayout({ children, params }: Props) {
   const supabase = await createClient()
   const { data: customer } = await supabase
     .from('customers')
-    .select('name_kanji, name_kana, status')
+    .select('name_kanji, name_kana, pipeline_stage, hold_state, hold_until')
     .eq('id', id)
     .single()
+
+  const stage = getStage(customer?.pipeline_stage)
+  const held = customer ? isOnHold(customer) : false
+  const holdState = toHoldState(customer?.hold_state)
 
   return (
     <div>
@@ -39,13 +45,18 @@ export default async function CustomerLayout({ children, params }: Props) {
             </svg>
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-bold text-base truncate" style={{ color: 'var(--color-text)' }}>
                 {customer?.name_kanji ?? ''}
               </h1>
-              {customer?.status && (
-                <span className={`badge ${STATUS_BADGE[customer.status] ?? 'badge-active'} flex-shrink-0`}>
-                  {customer.status}
+              {customer && (
+                <span className="badge flex-shrink-0" style={STAGE_TONE_STYLE[stage.tone]}>
+                  {stage.step}. {stage.label}
+                </span>
+              )}
+              {held && (
+                <span className="badge flex-shrink-0" style={HOLD_TONE_STYLE[holdState]}>
+                  {HOLD_LABEL[holdState]}
                 </span>
               )}
             </div>

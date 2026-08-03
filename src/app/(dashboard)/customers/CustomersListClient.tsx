@@ -21,7 +21,6 @@ export type CustomerListItem = {
   id: string
   name_kanji: string
   name_kana: string
-  status: string
   inquiry_date: string | null
   pipeline_stage: string | null
   stage_updated_at: string | null
@@ -29,12 +28,6 @@ export type CustomerListItem = {
   hold_state: string | null
   hold_reason: string | null
   hold_until: string | null
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  '活動中': 'active',
-  '契約済み': 'contracted',
-  '終了': 'ended',
 }
 
 type SortKey = 'stale' | 'stage' | 'recent'
@@ -266,9 +259,6 @@ function CustomerCard({ customer }: { customer: CustomerListItem }) {
                   {HOLD_LABEL[holdState]}
                 </span>
               )}
-              <span className={`badge badge-${STATUS_LABELS[customer.status] ?? 'active'}`}>
-                {customer.status}
-              </span>
             </div>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
               {customer.name_kana}

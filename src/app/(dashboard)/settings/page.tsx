@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { SupportTag } from '@/types/database'
+import { HOLD_LABEL, stageLabelWithStep, toHoldState } from '@/lib/constants/pipeline'
 
 function getEmailChangeErrorMessage(message: string) {
   const lowerMessage = message.toLowerCase()
@@ -131,14 +132,16 @@ export default function SettingsPage() {
     const { data } = await supabase.from('customers').select('*').order('created_at', { ascending: false })
     if (!data) { setCsvLoading(false); return }
 
-    const headers = ['ID', '氏名', 'フリガナ', '電話番号', 'メールアドレス', 'ステータス', '問い合わせ日', '登録日']
+    const headers = ['ID', '氏名', 'フリガナ', '電話番号', 'メールアドレス', '進行ステータス', '追跡状態', '定期利用', '問い合わせ日', '登録日']
     const rows = data.map(c => [
       c.id,
       c.name_kanji,
       c.name_kana,
       c.phone ?? '',
       c.email ?? '',
-      c.status,
+      stageLabelWithStep(c.pipeline_stage),
+      HOLD_LABEL[toHoldState(c.hold_state)],
+      c.is_recurring ? 'はい' : '',
       c.inquiry_date ?? '',
       c.created_at.split('T')[0],
     ])

@@ -31,7 +31,6 @@ const schema = z.object({
   is_recurring: z.boolean().default(false),
   recurring_note: z.string().optional(),
   inquiry_date: z.string().optional(),
-  status: z.string().default('活動中'),
   notes: z.string().optional(),
   babies: z.array(babySchema).default([]),
 })
@@ -51,7 +50,7 @@ export default function CustomerEditPage() {
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
-    defaultValues: { status: '活動中', is_recurring: false, babies: [] },
+    defaultValues: { is_recurring: false, babies: [] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'babies' })
@@ -86,7 +85,6 @@ export default function CustomerEditPage() {
         is_recurring: c.is_recurring ?? false,
         recurring_note: c.recurring_note ?? '',
         inquiry_date: c.inquiry_date ?? '',
-        status: c.status,
         notes: c.notes ?? '',
         babies: babies.map((b: { id: string; name: string | null; birth_date: string | null; due_date: string | null }) => ({
           id: b.id,
@@ -122,7 +120,6 @@ export default function CustomerEditPage() {
         is_recurring: values.is_recurring,
         recurring_note: values.recurring_note || null,
         inquiry_date: values.inquiry_date || null,
-        status: values.status,
         notes: values.notes || null,
       })
       .eq('id', id)
@@ -317,17 +314,9 @@ export default function CustomerEditPage() {
             <input className="input" type="date" {...register('inquiry_date')} />
           </div>
 
-          <div>
-            <label className="form-label">ステータス</label>
-            <select className="input" {...register('status')}>
-              <option value="活動中">活動中</option>
-              <option value="契約済み">契約済み</option>
-              <option value="終了">終了</option>
-            </select>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              15段階の進行ステータスは、顧客詳細の「進行ステータス」から変更します。
-            </p>
-          </div>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            進行ステータスと、保留・待ちの切り替えは顧客詳細の画面から行います。
+          </p>
         </div>
 
         {/* 定期利用 */}
