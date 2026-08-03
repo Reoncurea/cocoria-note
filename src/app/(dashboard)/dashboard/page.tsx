@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { CocoriaLogo } from '@/components/CocoriaLogo'
 import { createClient } from '@/lib/supabase/server'
-import { STAGE_TONE_STYLE, daysSince, getStage, isStale } from '@/lib/constants/pipeline'
+import { STAGE_TONE_STYLE, daysSince, getStage, isStale, nextTaskFor } from '@/lib/constants/pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
         .eq('paid', false),
       supabase
         .from('customers')
-        .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note')
+        .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring')
         .eq('user_id', userId)
         .neq('pipeline_stage', 'completed')
         .order('stage_updated_at', { ascending: true }),
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
             <Link key={c.id} href={`/customers/${c.id}${stage.href ?? ''}`}>
               <TaskItem
                 name={c.name_kanji}
-                task={stage.nextTask}
+                task={nextTaskFor(c.pipeline_stage, c.is_recurring).task}
                 sub={`${stage.step}. ${stage.label}${c.stage_note ? ` / ${c.stage_note}` : ''}`}
                 badge={days !== null ? `${days}日` : undefined}
                 badgeStyle={{ background: '#ffedd5', color: '#9a3412' }}

@@ -10,6 +10,7 @@ import {
   daysSince,
   getStage,
   isStale,
+  nextTaskFor,
 } from '@/lib/constants/pipeline'
 
 export type CustomerListItem = {
@@ -254,7 +255,7 @@ function CustomerCard({ customer }: { customer: CustomerListItem }) {
         {stage.key !== 'completed' && (
           <div className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>次のタスク: </span>
-            {stage.nextTask}
+            {nextTaskFor(customer.pipeline_stage, customer.is_recurring).task}
           </div>
         )}
       </div>

@@ -14,7 +14,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import { getStage, isStale } from '@/lib/constants/pipeline'
+import { getStage, isStale, nextTaskFor } from '@/lib/constants/pipeline'
 
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? 'https://note.cocoria.net'
 
@@ -91,7 +91,7 @@ export async function buildDailyAlert(): Promise<DailyAlert> {
       .limit(10),
     supabase
       .from('customers')
-      .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note')
+      .select('id, name_kanji, pipeline_stage, stage_updated_at, stage_note, is_recurring')
       .neq('pipeline_stage', 'completed')
       .order('stage_updated_at', { ascending: true }),
   ])
@@ -136,7 +136,8 @@ export async function buildDailyAlert(): Promise<DailyAlert> {
       '【止まっている案件】',
       ...stale.slice(0, 10).map(c => {
         const stage = getStage(c.pipeline_stage)
-        return `・${c.name_kanji}（${stage.label}）\n  → ${stage.nextTask}`
+        const task = nextTaskFor(c.pipeline_stage, c.is_recurring)
+        return `・${c.name_kanji}（${stage.label}）\n  → ${task.task}`
       }),
       ...(stale.length > 10 ? [`ほか${stale.length - 10}件`] : []),
     ].join('\n'))

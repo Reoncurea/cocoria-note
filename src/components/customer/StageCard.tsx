@@ -11,6 +11,7 @@ import {
   getStage,
   isStale,
   nextStage,
+  nextTaskFor,
   type PipelineStage,
 } from '@/lib/constants/pipeline'
 
@@ -19,11 +20,14 @@ export default function StageCard({
   stage,
   stageUpdatedAt,
   stageNote,
+  isRecurring,
 }: {
   customerId: string
   stage: string | null
   stageUpdatedAt: string | null
   stageNote: string | null
+  /** 定期利用の顧客では請求・入金の段階を飛ばす */
+  isRecurring: boolean | null
 }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -35,7 +39,8 @@ export default function StageCard({
   const tone = STAGE_TONE_STYLE[current.tone]
   const stale = isStale(stage, stageUpdatedAt)
   const days = daysSince(stageUpdatedAt)
-  const forward = nextStage(stage)
+  const forward = nextStage(stage, isRecurring)
+  const task = nextTaskFor(stage, isRecurring)
 
   async function changeStage(target: PipelineStage, nextNote?: string) {
     setSaving(true)
@@ -103,9 +108,9 @@ export default function StageCard({
       {/* 次のタスク */}
       <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
         <p className="text-xs font-bold" style={{ color: 'var(--color-primary-dark)' }}>次のタスク</p>
-        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{current.nextTask}</p>
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{task.task}</p>
         <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-          {current.nextTaskDetail}
+          {task.detail}
         </p>
         {taskHref && (
           <Link href={taskHref} className="btn-secondary text-xs px-3 py-1.5 inline-block mt-1">
@@ -152,6 +157,8 @@ export default function StageCard({
             {STAGE_LIST.map(item => {
               const active = item.key === current.key
               const itemTone = STAGE_TONE_STYLE[item.tone]
+              // 定期利用は月末にまとめて請求するので、訪問ごとの流れでは通らない
+              const skipped = Boolean(isRecurring && item.spotOnly)
               return (
                 <button
                   key={item.key}
@@ -162,14 +169,20 @@ export default function StageCard({
                   style={{
                     background: active ? itemTone.background : 'var(--color-surface)',
                     border: `1px solid ${active ? itemTone.color : 'var(--color-border)'}`,
-                    color: active ? itemTone.color : 'var(--color-text)',
+                    color: active ? itemTone.color : skipped ? 'var(--color-text-muted)' : 'var(--color-text)',
                     fontWeight: active ? 600 : 400,
+                    opacity: skipped && !active ? 0.6 : 1,
                   }}
                 >
                   <span className="text-xs w-5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                     {item.step}
                   </span>
                   {item.label}
+                  {skipped && (
+                    <span className="text-[10px] ml-1" style={{ color: 'var(--color-text-muted)' }}>
+                      月末請求のため通常は使いません
+                    </span>
+                  )}
                   {active && <Check size={15} className="ml-auto flex-shrink-0" />}
                 </button>
               )

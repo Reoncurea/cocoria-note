@@ -282,6 +282,7 @@ export default function CustomerDetailClient({
         stage={customer.pipeline_stage}
         stageUpdatedAt={customer.stage_updated_at}
         stageNote={customer.stage_note}
+        isRecurring={customer.is_recurring}
       />
 
       {nextVisit && <NextVisitCard customerId={id} visit={nextVisit} />}

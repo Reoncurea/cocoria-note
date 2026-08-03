@@ -1,6 +1,12 @@
 // 顧客ごとの進行ステータス（15段階）と、各段階で次にやることの定義。
 // DB側は customers.pipeline_stage に key を保存する。
 // 段階を増やすときは、ここと migration の check 制約の両方を直すこと。
+//
+// 請求のタイミングは契約形態で変わる（2026-08-02 ユーザー確認）
+//   スポット契約・初回利用 … アンケート送付済みのあとに請求する
+//   定期利用             … 月末にまとめて請求する。訪問ごとの流れでは請求しない
+// そのため「請求済み」「入金済み」は spotOnly とし、
+// 定期利用の顧客では次の段階への案内から外す。
 
 export const PIPELINE_STAGES = [
   'inquiry',
@@ -10,12 +16,12 @@ export const PIPELINE_STAGES = [
   'schedule_fixed',
   'contract_sent',
   'contract_signed',
-  'invoiced',
-  'paid',
   'day_before_confirmed',
   'visit_done',
   'report_sent',
   'survey_sent',
+  'invoiced',
+  'paid',
   'next_offered',
   'completed',
 ] as const
@@ -34,12 +40,17 @@ export type StageDefinition = {
   nextTask: string
   /** 次のタスクの補足 */
   nextTaskDetail: string
+  /** 定期利用の顧客のときに差し替える「次のタスク」 */
+  nextTaskRecurring?: string
+  nextTaskDetailRecurring?: string
   /** この段階に留まってよい日数の目安。超えたらアラートを出す */
   staleAfterDays: number
   /** バッジの配色 */
   tone: 'lead' | 'prep' | 'contract' | 'money' | 'visit' | 'after' | 'done'
   /** 次のタスクから飛べる顧客配下のパス（'' は顧客詳細） */
   href?: string
+  /** スポット契約・初回利用だけで通る段階。定期利用では飛ばす */
+  spotOnly?: boolean
 }
 
 export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
@@ -105,35 +116,15 @@ export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
     key: 'contract_signed',
     step: 7,
     label: '契約締結済み',
-    nextTask: '請求書を発行して送る',
-    nextTaskDetail: '契約履歴を登録し、利用プランと交通費を合算した請求書を送ります。',
-    staleAfterDays: 3,
-    tone: 'money',
-    href: '/billing',
-  },
-  invoiced: {
-    key: 'invoiced',
-    step: 8,
-    label: '請求済み',
-    nextTask: '入金を確認する',
-    nextTaskDetail: '入金の有無を確認し、請求画面の入金済みにチェックを入れます。',
-    staleAfterDays: 7,
-    tone: 'money',
-    href: '/billing',
-  },
-  paid: {
-    key: 'paid',
-    step: 9,
-    label: '入金済み',
     nextTask: '訪問前日の確認連絡をする',
-    nextTaskDetail: '訪問日時・持参物・当日の希望を前日までに確認します。訪問前チェックの記入もここで。',
+    nextTaskDetail: '契約履歴を登録したうえで、訪問日時・持参物・当日の希望を前日までに確認します。訪問前チェックの記入もここで。',
     staleAfterDays: 14,
     tone: 'visit',
     href: '/visits',
   },
   day_before_confirmed: {
     key: 'day_before_confirmed',
-    step: 10,
+    step: 8,
     label: '前日確認済み',
     nextTask: '訪問して記録を取る',
     nextTaskDetail: '訪問チェックリストに沿って進め、開始時刻・実施内容・ヒヤリハットを記録します。',
@@ -143,7 +134,7 @@ export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
   },
   visit_done: {
     key: 'visit_done',
-    step: 11,
+    step: 9,
     label: '訪問完了',
     nextTask: '報告書を作成して送付する',
     nextTaskDetail: '訪問記録を確定してPDF報告書を作り、お礼メッセージと一緒に送ります。',
@@ -153,7 +144,7 @@ export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
   },
   report_sent: {
     key: 'report_sent',
-    step: 12,
+    step: 10,
     label: '報告書送付済み',
     nextTask: 'アンケートを送る',
     nextTaskDetail: '満足度アンケートのURLを送り、回答期限を添えます。',
@@ -162,12 +153,36 @@ export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
   },
   survey_sent: {
     key: 'survey_sent',
-    step: 13,
+    step: 11,
     label: 'アンケート送付済み',
+    nextTask: '請求書を発行して送る',
+    nextTaskDetail: 'スポット契約・初回利用は、ここで請求します。利用プランと交通費を合算した請求書を送ります。',
+    nextTaskRecurring: '次回のご利用を案内する',
+    nextTaskDetailRecurring: '定期利用のため、請求は月末にまとめて行います。ここでは次回の日程を案内します。',
+    staleAfterDays: 3,
+    tone: 'money',
+    href: '/billing',
+  },
+  invoiced: {
+    key: 'invoiced',
+    step: 12,
+    label: '請求済み',
+    nextTask: '入金を確認する',
+    nextTaskDetail: '入金の有無を確認し、請求画面の入金済みにチェックを入れます。',
+    staleAfterDays: 7,
+    tone: 'money',
+    href: '/billing',
+    spotOnly: true,
+  },
+  paid: {
+    key: 'paid',
+    step: 13,
+    label: '入金済み',
     nextTask: '次回のご利用を案内する',
     nextTaskDetail: '空き日程と継続プランを案内します。アンケート回答があれば内容を確認します。',
     staleAfterDays: 5,
     tone: 'after',
+    spotOnly: true,
   },
   next_offered: {
     key: 'next_offered',
@@ -185,6 +200,7 @@ export const STAGE_DEFINITIONS: Record<PipelineStage, StageDefinition> = {
     label: '完了・継続利用',
     nextTask: '対応中のタスクはありません',
     nextTaskDetail: '次の依頼が来たら、ステータスを「問い合わせ」または「日程調整中」に戻してください。',
+    nextTaskDetailRecurring: '定期利用のため、月末の請求を忘れないでください。次の訪問が決まったら「日程確定」に戻します。',
     staleAfterDays: 0,
     tone: 'done',
   },
@@ -210,10 +226,42 @@ export function stageLabelWithStep(value: string | null | undefined): string {
   return `${stage.step}. ${stage.label}`
 }
 
-/** 1つ進んだ段階。最後の段階ならnull */
-export function nextStage(value: string | null | undefined): PipelineStage | null {
+/** その顧客で使う段階だけ。定期利用では請求・入金を飛ばす */
+export function stagesFor(isRecurring: boolean | null | undefined): StageDefinition[] {
+  return isRecurring ? STAGE_LIST.filter(stage => !stage.spotOnly) : STAGE_LIST
+}
+
+/**
+ * 1つ進んだ段階。最後の段階ならnull。
+ * 定期利用の顧客では「請求済み」「入金済み」を飛ばす。
+ */
+export function nextStage(
+  value: string | null | undefined,
+  isRecurring?: boolean | null,
+): PipelineStage | null {
+  const current = getStage(value)
+  const usable = stagesFor(isRecurring)
+  const index = usable.findIndex(stage => stage.key === current.key)
+
+  // いま spotOnly の段階にいる定期利用顧客（設定変更後など）は、
+  // 表示順で次に来る使える段階へ送る
+  if (index === -1) {
+    return usable.find(stage => stage.step > current.step)?.key ?? null
+  }
+
+  return usable[index + 1]?.key ?? null
+}
+
+/** 定期利用かどうかで文言が変わる「次のタスク」 */
+export function nextTaskFor(
+  value: string | null | undefined,
+  isRecurring?: boolean | null,
+): { task: string; detail: string } {
   const stage = getStage(value)
-  return PIPELINE_STAGES[stage.step] ?? null
+  return {
+    task: (isRecurring && stage.nextTaskRecurring) || stage.nextTask,
+    detail: (isRecurring && stage.nextTaskDetailRecurring) || stage.nextTaskDetail,
+  }
 }
 
 export const STAGE_TONE_STYLE: Record<StageDefinition['tone'], { background: string; color: string }> = {
