@@ -5,9 +5,20 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Visit, Customer, ServiceRecord, BreathCheck, BreathCheckCell, VisitPhoto } from '@/types/database'
+import type {
+  Visit, Customer, ServiceRecord, BreathCheck, BreathCheckCell, VisitPhoto,
+  SleepLog, BabyObservation,
+} from '@/types/database'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import {
+  MOOD_LABEL,
+  formatMinutes,
+  shortTime,
+  sleepMinutes,
+  toMood,
+  totalSleepMinutes,
+} from '@/lib/constants/baby-observation'
 
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
 type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
@@ -24,24 +35,30 @@ export default function ReportPage() {
   const [breathCells, setBreathCells] = useState<BreathCheckCell[]>([])
   const [photos, setPhotos] = useState<VisitPhotoWithUrl[]>([])
   const [tags, setTags] = useState<string[]>([])
+  const [sleepLogs, setSleepLogs] = useState<SleepLog[]>([])
+  const [observations, setObservations] = useState<BabyObservation[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
 
   useEffect(() => {
     async function load() {
-      const [vRes, cRes, srRes, bcRes, vtRes, photoRes] = await Promise.all([
+      const [vRes, cRes, srRes, bcRes, vtRes, photoRes, sleepRes, obsRes] = await Promise.all([
         supabase.from('visits').select('*').eq('id', visitId).single(),
         supabase.from('customers').select('*').eq('id', id).single(),
         supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
         supabase.from('breath_checks').select('*').eq('visit_id', visitId).single(),
         supabase.from('visit_tags').select('tag_id, support_tags(name)').eq('visit_id', visitId),
         supabase.from('visit_photos').select('*').eq('visit_id', visitId).order('sort_order'),
+        supabase.from('sleep_logs').select('*').eq('visit_id', visitId).order('started_at'),
+        supabase.from('baby_observations').select('*').eq('visit_id', visitId).order('recorded_at'),
       ])
       setVisit(vRes.data)
       setCustomer(cRes.data)
       setServiceRecords(srRes.data ?? [])
       setBreathCheck(bcRes.data)
+      setSleepLogs(sleepRes.data ?? [])
+      setObservations(obsRes.data ?? [])
       const photosWithUrls = await Promise.all(((photoRes.data ?? []) as VisitPhoto[]).map(async photo => {
         const { data } = await supabase.storage.from('visit-photos').createSignedUrl(photo.file_path, 60 * 60)
         return { ...photo, signedUrl: data?.signedUrl }
@@ -85,6 +102,14 @@ export default function ReportPage() {
   }
 
   const hours = Array.from(new Set(breathCells.map(c => c.hour_label))).sort()
+
+  /** うつぶせから仰向けに直した時刻。何時何分に直したかが分かればよい */
+  const proneCorrections = breathCells
+    .filter(c => c.prone_corrected)
+    .map(c => `${c.hour_label.replace('時', '')}:${String(c.minute_value).padStart(2, '0')}`)
+    .sort()
+
+  const totalSleep = totalSleepMinutes(sleepLogs)
 
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen">
@@ -192,6 +217,77 @@ export default function ReportPage() {
             </div>
           )}
 
+          {/* 赤ちゃんの様子（睡眠・体温・機嫌） */}
+          {(sleepLogs.length > 0 || observations.length > 0) && (
+            <div className="mb-5">
+              <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--color-text)' }}>赤ちゃんの様子</h3>
+
+              {sleepLogs.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                    睡眠{totalSleep > 0 && `（合計 ${formatMinutes(totalSleep)}）`}
+                  </p>
+                  <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--color-primary-light)' }}>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)', width: '55%' }}>時間帯</th>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)' }}>長さ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sleepLogs.map(log => {
+                        const minutes = sleepMinutes(log)
+                        return (
+                          <tr key={log.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                            <td className="p-2" style={{ color: 'var(--color-text)' }}>
+                              {shortTime(log.started_at)} 〜 {shortTime(log.ended_at) || '（記録中）'}
+                            </td>
+                            <td className="p-2" style={{ color: 'var(--color-text-muted)' }}>
+                              {minutes === null ? '—' : formatMinutes(minutes)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {observations.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>体温・機嫌</p>
+                  <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--color-primary-light)' }}>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)', width: '20%' }}>時刻</th>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)', width: '20%' }}>体温</th>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)', width: '25%' }}>機嫌</th>
+                        <th className="text-left p-2 text-xs" style={{ color: 'var(--color-primary-dark)' }}>メモ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {observations.map(observation => {
+                        const moodKey = toMood(observation.mood)
+                        return (
+                          <tr key={observation.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                            <td className="p-2" style={{ color: 'var(--color-text)' }}>{shortTime(observation.recorded_at)}</td>
+                            <td className="p-2" style={{ color: 'var(--color-text)' }}>
+                              {observation.temperature !== null ? `${observation.temperature}℃` : ''}
+                            </td>
+                            <td className="p-2" style={{ color: 'var(--color-text)' }}>
+                              {moodKey ? MOOD_LABEL[moodKey] : ''}
+                            </td>
+                            <td className="p-2" style={{ color: 'var(--color-text-muted)' }}>{observation.note ?? ''}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 写真共有 */}
           {photos.length > 0 && (
             <div className="mb-5">
@@ -262,14 +358,19 @@ export default function ReportPage() {
                       <td className="p-2 font-semibold" style={{ color: 'var(--color-text)' }}>{hour}</td>
                       {MINUTES.map(m => {
                         const cell = breathCells.find(c => c.hour_label === hour && c.minute_value === m)
+                        const checked = cell?.checked ?? false
+                        const prone = cell?.prone_corrected ?? false
                         return (
                           <td key={m} className="p-1 text-center">
-                            <div className="w-5 h-5 rounded mx-auto"
+                            <div className="w-5 h-5 rounded mx-auto text-[10px] font-bold leading-5"
                               style={{
-                                background: cell?.checked ? '#86efac' : 'var(--color-surface)',
-                                border: `1px solid ${cell?.checked ? '#4ade80' : 'var(--color-border)'}`,
+                                background: prone ? '#fdba74' : checked ? '#86efac' : 'var(--color-surface)',
+                                border: `1px solid ${prone ? '#fb923c' : checked ? '#4ade80' : 'var(--color-border)'}`,
+                                color: '#7c2d12',
                               }}
-                            />
+                            >
+                              {prone ? '↺' : ''}
+                            </div>
                           </td>
                         )
                       })}
@@ -278,6 +379,28 @@ export default function ReportPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* 凡例 */}
+            <div className="flex items-center gap-4 flex-wrap mt-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded inline-block" style={{ background: '#86efac', border: '1px solid #4ade80' }} />
+                呼吸を確認しました
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded inline-block text-[9px] font-bold text-center leading-4"
+                  style={{ background: '#fdba74', border: '1px solid #fb923c', color: '#7c2d12' }}>↺</span>
+                確認のうえ、仰向けに直しました
+              </span>
+            </div>
+
+            {proneCorrections.length > 0 && (
+              <div className="mt-3 p-3 rounded-xl" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <p className="text-xs font-bold mb-1" style={{ color: '#9a3412' }}>
+                  うつぶせから仰向けに直した時刻（{proneCorrections.length}回）
+                </p>
+                <p className="text-sm" style={{ color: '#7c2d12' }}>{proneCorrections.join('、')}</p>
+              </div>
+            )}
 
             {breathCheck.memo && (
               <div className="mt-4 p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
