@@ -9,9 +9,19 @@ import { mapDirectionsUrl, mapSearchUrl } from '@/lib/maps'
 import VisitChecklist from '@/components/visit/VisitChecklist'
 import BreathCheckTable from '@/components/visit/BreathCheckTable'
 import ServiceRecordQuickAdd from '@/components/visit/ServiceRecordQuickAdd'
+import SleepLogPanel from '@/components/visit/SleepLogPanel'
+import BabyObservationPanel from '@/components/visit/BabyObservationPanel'
 import type { ChecklistState } from '@/lib/constants/visit-checklist'
 import type { ChecklistContext } from '@/lib/visits/checklist-context'
-import type { BreathCheck, BreathCheckCell, ServiceRecord, Visit, VisitPhoto } from '@/types/database'
+import type {
+  BabyObservation,
+  BreathCheck,
+  BreathCheckCell,
+  ServiceRecord,
+  SleepLog,
+  Visit,
+  VisitPhoto,
+} from '@/types/database'
 
 export type VisitPhotoWithUrl = VisitPhoto & { signedUrl?: string }
 
@@ -36,6 +46,8 @@ export default function VisitDetailClient({
   initialBreathCells,
   tags,
   photos,
+  sleepLogs,
+  observations,
   customerAddress,
   lastVisit,
 }: {
@@ -48,6 +60,8 @@ export default function VisitDetailClient({
   initialBreathCells: BreathCheckCell[]
   tags: string[]
   photos: VisitPhotoWithUrl[]
+  sleepLogs: SleepLog[]
+  observations: BabyObservation[]
   customerAddress: string | null
   lastVisit: LastVisit | null
 }) {
@@ -169,11 +183,19 @@ export default function VisitDetailClient({
         context={checklistContext}
         phaseExtras={{
           during: (
-            <div className="space-y-4 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <div className="space-y-5 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
               <BreathCheckTable
                 visitId={visit.id}
                 initialBreathCheck={breathCheck}
                 initialCells={initialBreathCells}
+              />
+              <SleepLogPanel
+                visitId={visit.id}
+                initialLogs={sleepLogs}
+              />
+              <BabyObservationPanel
+                visitId={visit.id}
+                initialObservations={observations}
               />
               <ServiceRecordQuickAdd
                 visitId={visit.id}

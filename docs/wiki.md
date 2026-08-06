@@ -366,8 +366,48 @@ src/lib/uploads/photos.ts
 - 訪問前チェックの項目は、カルテとプランニング情報から中身を自動で表示します
   （住所・最寄駅・交通費・アレルギー・緊急連絡先など）
 - 入力は自動保存です（0.7秒待ってからまとめて送信）
-- **「訪問中の記録」フェーズの中に、呼吸チェック表と作業記録のタップ入力が入っています**
+- **「訪問中の記録」フェーズの中に、赤ちゃんの様子の記録がまとめて入っています**
   （`VisitChecklist` の `phaseExtras` で差し込んでいます）
+
+### 2.5.3 訪問中の赤ちゃんの記録（2026-08-03 追加）
+
+「訪問中の記録」フェーズを開くと、上から次の順に並びます。
+
+| 記録 | 内容 | 実装 |
+| --- | --- | --- |
+| 呼吸チェック表 | 5分ごとのマス。**3状態**で押すたびに切り替わる | `BreathCheckTable.tsx` |
+| 睡眠 | 「寝た」「起きた」の打刻。合計時間を自動計算 | `SleepLogPanel.tsx` |
+| 体温・機嫌 | 時刻つきで何回でも記録 | `BabyObservationPanel.tsx` |
+| 作業記録 | カテゴリーを押すと時刻つきで即保存 | `ServiceRecordQuickAdd.tsx` |
+
+#### 呼吸チェックの3状態
+
+| 表示 | 意味 | DB |
+| --- | --- | --- |
+| 空白 | 未確認 | `checked = false` |
+| 🟩 緑 | 呼吸確認OK | `checked = true` |
+| 🟧 オレンジ（↺） | 確認＋**うつぶせ寝を直した** | `checked = true, prone_corrected = true` |
+
+押すたびに 空白 → 緑 → オレンジ → 空白 と切り替わります。
+うつぶせを直した時刻は表の下にまとめて出るので、報告のときに拾えます。
+
+#### 睡眠
+
+`sleep_logs` に「開始時刻・終了時刻」の組で入ります。
+「寝た」だけ押して起きていない状態は `ended_at = null` で表し、画面には「睡眠中」と出ます。
+合計時間は**終了したものだけ**数えます。時刻は後から直せます。
+
+日をまたぐ訪問は想定していません（終了が開始より前なら不正として合計に入れない）。
+
+#### 体温・機嫌
+
+`baby_observations` に時刻つきで入ります。
+
+- 体温は **33〜42℃の範囲外を弾きます**（36.8 を 368 と打ち間違えたときに気づけるように）
+- 37.5℃以上は赤く表示します
+- 機嫌は5段階：機嫌がよい／落ち着いている／ぐずり気味／泣いている／寝ている
+- 選択肢を変えるときは `src/lib/constants/baby-observation.ts` と
+  migration の check 制約の両方を直すこと
 
 ### 2.5.2 訪問予定一覧
 
@@ -655,6 +695,9 @@ vercel.json                     実行時刻（UTC）
 | `customers` | `hold_state` | 追跡状態（active / waiting / paused） |
 | `customers` | `hold_reason` | 止めている理由 |
 | `customers` | `hold_until` | この日が来たら自動で通常へ戻る |
+| `breath_check_cells` | `prone_corrected` | このコマでうつぶせ寝を直したか |
+| `sleep_logs`（新規） | — | 訪問中の睡眠（開始・終了の打刻） |
+| `baby_observations`（新規） | — | 訪問中の体温・機嫌 |
 
 ### 4.2 Storage bucket
 
@@ -681,6 +724,7 @@ vercel.json                     実行時刻（UTC）
 20260609_add_photo_upload_option.sql
 20260801_add_pipeline_and_visit_checklist.sql
 20260803_add_customer_hold.sql
+20260803_add_baby_observations.sql
 ```
 
 本番反映時は、VercelのデプロイだけではDB変更は反映されません。Supabase側にも未適用migrationを反映してください。

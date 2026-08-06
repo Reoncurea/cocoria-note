@@ -60,14 +60,25 @@ export default function BreathCheckTable({
     if (data) setBreathCheck(data)
   }
 
+  /**
+   * 押すたびに 未確認 → 確認OK → 確認＋うつぶせ直し → 未確認 と切り替える。
+   * 5分おきの記録の流れを止めずに、直した時刻をそのまま残せるようにしている。
+   */
+  function nextCellState(cell: BreathCheckCell | undefined): { checked: boolean; prone_corrected: boolean } {
+    if (!cell?.checked) return { checked: true, prone_corrected: false }
+    if (!cell.prone_corrected) return { checked: true, prone_corrected: true }
+    return { checked: false, prone_corrected: false }
+  }
+
   async function toggleCell(hourLabel: string, minute: number) {
     if (!breathCheck) return
     const existing = cells.find(c => c.hour_label === hourLabel && c.minute_value === minute)
+    const next = nextCellState(existing)
 
     if (existing) {
       // 先に画面を変えて、押した手応えを止めない
-      setCells(prev => prev.map(c => c.id === existing.id ? { ...c, checked: !c.checked } : c))
-      await supabase.from('breath_check_cells').update({ checked: !existing.checked }).eq('id', existing.id)
+      setCells(prev => prev.map(c => c.id === existing.id ? { ...c, ...next } : c))
+      await supabase.from('breath_check_cells').update(next).eq('id', existing.id)
       return
     }
 
@@ -75,10 +86,19 @@ export default function BreathCheckTable({
       breath_check_id: breathCheck.id,
       hour_label: hourLabel,
       minute_value: minute,
-      checked: true,
+      ...next,
     }).select().single()
     if (data) setCells(prev => [...prev, data])
   }
+
+  /** うつぶせを直した時刻の一覧。報告のときに拾いやすくする */
+  const proneCorrections = useMemo(
+    () => cells
+      .filter(c => c.prone_corrected)
+      .map(c => `${c.hour_label.replace('時', '')}:${String(c.minute_value).padStart(2, '0')}`)
+      .sort(),
+    [cells],
+  )
 
   async function addHour() {
     const raw = addingHour.trim()
@@ -167,18 +187,22 @@ export default function BreathCheckTable({
                   {MINUTES.map(m => {
                     const cell = cells.find(c => c.hour_label === hour && c.minute_value === m)
                     const checked = cell?.checked ?? false
+                    const prone = cell?.prone_corrected ?? false
                     return (
                       <td key={m} className="py-1 px-1 text-center">
                         <button
                           type="button"
                           onClick={() => toggleCell(hour, m)}
-                          className="w-6 h-6 rounded transition-colors"
+                          className="w-6 h-6 rounded transition-colors text-[10px] font-bold"
                           style={{
-                            background: checked ? '#86efac' : 'var(--color-surface)',
-                            border: `1px solid ${checked ? '#4ade80' : 'var(--color-border)'}`,
+                            background: prone ? '#fdba74' : checked ? '#86efac' : 'var(--color-surface)',
+                            border: `1px solid ${prone ? '#fb923c' : checked ? '#4ade80' : 'var(--color-border)'}`,
+                            color: '#7c2d12',
                           }}
-                          aria-label={`${hour}${m}分`}
-                        />
+                          aria-label={`${hour}${m}分 ${prone ? 'うつぶせを直した' : checked ? '確認OK' : '未確認'}`}
+                        >
+                          {prone ? '↺' : ''}
+                        </button>
                       </td>
                     )
                   })}
@@ -186,6 +210,31 @@ export default function BreathCheckTable({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 凡例。押すたびに状態が変わることを伝える */}
+      <div className="flex items-center gap-3 flex-wrap text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+        <span className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded inline-block" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }} />
+          未確認
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded inline-block" style={{ background: '#86efac', border: '1px solid #4ade80' }} />
+          確認OK
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded inline-block text-[9px] font-bold text-center leading-4"
+            style={{ background: '#fdba74', border: '1px solid #fb923c', color: '#7c2d12' }}>↺</span>
+          うつぶせを直した
+        </span>
+        <span>押すたびに切り替わります</span>
+      </div>
+
+      {proneCorrections.length > 0 && (
+        <div className="px-3 py-2 rounded-lg text-xs" style={{ background: '#fff7ed', color: '#9a3412' }}>
+          <span className="font-semibold">うつぶせを直した時刻（{proneCorrections.length}回）: </span>
+          {proneCorrections.join('、')}
         </div>
       )}
 

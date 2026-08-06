@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 過去の作業コピー。同じ警告が二重に出るので対象外にする
+    ".claude/**",
   ]),
 ]);
 

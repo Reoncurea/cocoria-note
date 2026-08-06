@@ -2,7 +2,15 @@ import { createClient } from '@/lib/supabase/server'
 import { signedUrlMap } from '@/lib/uploads/signed-urls'
 import { normalizeChecklist } from '@/lib/constants/visit-checklist'
 import { buildChecklistContext } from '@/lib/visits/checklist-context'
-import type { BreathCheck, BreathCheckCell, ServiceRecord, Visit, VisitPhoto } from '@/types/database'
+import type {
+  BabyObservation,
+  BreathCheck,
+  BreathCheckCell,
+  ServiceRecord,
+  SleepLog,
+  Visit,
+  VisitPhoto,
+} from '@/types/database'
 import VisitDetailClient, { type VisitPhotoWithUrl } from './VisitDetailClient'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +23,10 @@ export default async function VisitDetailPage({
   const { id, visitId } = await params
   const supabase = await createClient()
 
-  const [visitRes, recordsRes, breathRes, tagsRes, photosRes, customerRes, sessionRes, billingRes, contractRes] =
+  const [
+    visitRes, recordsRes, breathRes, tagsRes, photosRes,
+    customerRes, sessionRes, billingRes, contractRes, sleepRes, observationRes,
+  ] =
     await Promise.all([
       supabase.from('visits').select('*').eq('id', visitId).maybeSingle(),
       supabase.from('service_records').select('*').eq('visit_id', visitId).order('sort_order'),
@@ -40,6 +51,8 @@ export default async function VisitDetailPage({
         .eq('customer_id', id)
         .order('contracted_date', { ascending: false })
         .limit(1),
+      supabase.from('sleep_logs').select('*').eq('visit_id', visitId).order('started_at'),
+      supabase.from('baby_observations').select('*').eq('visit_id', visitId).order('recorded_at'),
     ])
 
   const visit = visitRes.data as Visit | null
@@ -125,6 +138,8 @@ export default async function VisitDetailPage({
       initialBreathCells={breathCells}
       tags={tags}
       photos={photos}
+      sleepLogs={(sleepRes.data ?? []) as SleepLog[]}
+      observations={(observationRes.data ?? []) as BabyObservation[]}
       customerAddress={customer.address}
       lastVisit={lastVisit ? { ...lastVisit, records: lastVisitRecords } : null}
     />

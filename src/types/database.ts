@@ -69,6 +69,22 @@ export interface BreathCheckRow { id: string; visit_id: string; memo: string | n
 
 export interface BreathCheckCellRow {
   id: string; breath_check_id: string; hour_label: string; minute_value: number; checked: boolean
+  // このコマでうつぶせ寝を直したか
+  prone_corrected: boolean
+}
+
+export interface SleepLogRow {
+  id: string; visit_id: string
+  started_at: string; ended_at: string | null
+  note: string | null; created_at: string
+}
+
+export interface BabyObservationRow {
+  id: string; visit_id: string; recorded_at: string
+  temperature: number | null
+  // good / calm / fussy / crying / sleeping
+  mood: string | null
+  note: string | null; created_at: string
 }
 
 export interface CustomerActivityRow {
@@ -198,8 +214,20 @@ export interface Database {
       }
       breath_check_cells: {
         Row: BreathCheckCellRow
-        Insert: Omit<BreathCheckCellRow, 'id'> & { id?: string }
+        Insert: Omit<BreathCheckCellRow, 'id' | 'prone_corrected'> & { id?: string; prone_corrected?: boolean }
         Update: Partial<Omit<BreathCheckCellRow, 'id'>>
+        Relationships: []
+      }
+      sleep_logs: {
+        Row: SleepLogRow
+        Insert: Omit<SleepLogRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<SleepLogRow, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      baby_observations: {
+        Row: BabyObservationRow
+        Insert: Omit<BabyObservationRow, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<BabyObservationRow, 'id' | 'created_at'>>
         Relationships: []
       }
       billing: {
@@ -265,6 +293,8 @@ export type VisitPhoto = VisitPhotoRow
 export type PlanningPhoto = PlanningPhotoRow
 export type BreathCheck = BreathCheckRow
 export type BreathCheckCell = BreathCheckCellRow
+export type SleepLog = SleepLogRow
+export type BabyObservation = BabyObservationRow
 export type Billing = BillingRow
 export type CustomerContract = CustomerContractRow
 export type VisitBilling = VisitBillingRow
